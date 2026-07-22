@@ -1,0 +1,10 @@
+{
+  "name": "Passport MRZ & Barcode Generator",
+  "description": "نظام إنشاء وتحليل القراءة الآلية (MRZ) والباركود الخاص بالجوازات والوثائق الرسمية بحسب معايير ICAO 9303",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
