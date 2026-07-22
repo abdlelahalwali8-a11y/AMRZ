@@ -8,6 +8,22 @@ interface CameraScannerProps {
   lang?: 'ar' | 'en';
 }
 
+const sanitizeDateString = (dateStr?: string, defaultFallback: string = ''): string => {
+  if (!dateStr || !dateStr.trim()) return defaultFallback;
+  const clean = dateStr.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) return clean;
+  if (/^\d{4}\/\d{2}\/\d{2}$/.test(clean)) return clean.replace(/\//g, '-');
+  const dmY = clean.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+  if (dmY) {
+    return `${dmY[3]}-${dmY[2].padStart(2, '0')}-${dmY[1].padStart(2, '0')}`;
+  }
+  const digits = clean.replace(/\D/g, '');
+  if (digits.length === 8) {
+    return `${digits.substring(0, 4)}-${digits.substring(4, 6)}-${digits.substring(6, 8)}`;
+  }
+  return defaultFallback || clean;
+};
+
 export const CameraScanner: React.FC<CameraScannerProps> = ({ onScanComplete, lang = 'ar' }) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -97,6 +113,18 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onScanComplete, la
         if (jsonRes.success && jsonRes.data) {
           const parsedJson = jsonRes.data;
 
+          const birthDate = sanitizeDateString(parsedJson.birthDate, '2003-01-12');
+          const expiryDate = sanitizeDateString(parsedJson.expiryDate, '2030-11-27');
+          
+          let issueDate = sanitizeDateString(parsedJson.issueDate, '');
+          if (!issueDate && expiryDate) {
+            const expYear = parseInt(expiryDate.substring(0, 4), 10);
+            if (!isNaN(expYear)) {
+              issueDate = `${expYear - 6}${expiryDate.substring(4)}`;
+            }
+          }
+          if (!issueDate) issueDate = '2024-11-27';
+
           const extractedPassport: PassportData = {
             id: `scanned-${Date.now()}`,
             documentType: (parsedJson.documentType || 'P') as any,
@@ -108,11 +136,11 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onScanComplete, la
             givenNamesAr: parsedJson.givenNamesAr || 'محمد محمد حسين',
             passportNumber: parsedJson.passportNumber || '14704563',
             nationality: parsedJson.nationality || 'YEM',
-            birthDate: parsedJson.birthDate || '2003-01-12',
+            birthDate,
             sex: parsedJson.sex === 'F' ? 'F' : 'M',
-            expiryDate: parsedJson.expiryDate || '2030-11-27',
+            expiryDate,
             personalNumber: parsedJson.personalNumber || '',
-            issueDate: parsedJson.issueDate || '2024-11-27',
+            issueDate,
             profession: parsedJson.profession || 'LABORER',
             professionAr: parsedJson.professionAr || 'عامل',
             placeOfBirth: parsedJson.placeOfBirth || 'ALMAHWEET - YEM',

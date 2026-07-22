@@ -14,6 +14,42 @@ interface PassportPreviewProps {
   activeHoverField?: string | null;
 }
 
+function formatPassportDate(dateStr?: string) {
+  if (!dateStr || !dateStr.trim()) {
+    return { en: 'DD/MM/YYYY', ar: 'YYYY/MM/DD' };
+  }
+  const clean = dateStr.trim();
+  let y = '', m = '', d = '';
+
+  const ymdMatch = clean.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+  if (ymdMatch) {
+    y = ymdMatch[1];
+    m = ymdMatch[2].padStart(2, '0');
+    d = ymdMatch[3].padStart(2, '0');
+  } else {
+    const dmyMatch = clean.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+    if (dmyMatch) {
+      d = dmyMatch[1].padStart(2, '0');
+      m = dmyMatch[2].padStart(2, '0');
+      y = dmyMatch[3];
+    } else {
+      const digits = clean.replace(/\D/g, '');
+      if (digits.length === 8) {
+        y = digits.substring(0, 4);
+        m = digits.substring(4, 6);
+        d = digits.substring(6, 8);
+      } else {
+        return { en: clean, ar: clean };
+      }
+    }
+  }
+
+  return {
+    en: `${d}/${m}/${y}`,
+    ar: `${y}/${m}/${d}`
+  };
+}
+
 export const PassportPreview: React.FC<PassportPreviewProps> = ({
   data,
   lang = 'ar',
@@ -390,8 +426,8 @@ export const PassportPreview: React.FC<PassportPreviewProps> = ({
                   <span>تاريخ الميلاد</span>
                 </div>
                 <div className="flex justify-between items-center font-bold text-xs font-mono text-slate-900">
-                  <span>{data.birthDate ? data.birthDate.split('-').reverse().join('/') : 'DD/MM/YYYY'}</span>
-                  <span>{data.birthDate ? data.birthDate.replace(/-/g, '/') : 'YYYY/MM/DD'}</span>
+                  <span>{formatPassportDate(data.birthDate).en}</span>
+                  <span>{formatPassportDate(data.birthDate).ar}</span>
                 </div>
               </div>
 
@@ -423,14 +459,28 @@ export const PassportPreview: React.FC<PassportPreviewProps> = ({
 
             {/* Date of Issue & Date of Expiry */}
             <div className="grid grid-cols-2 gap-2">
-              <div className="p-1.5 rounded border border-amber-900/20 bg-white/50">
+              <div
+                onMouseEnter={() => {
+                  setHoveredSegment('issueDate');
+                  onHoverField?.('issueDate');
+                }}
+                onMouseLeave={() => {
+                  setHoveredSegment(null);
+                  onHoverField?.(null);
+                }}
+                className={`p-1.5 rounded transition-all border ${
+                  isFieldActive('issueDate')
+                    ? 'bg-amber-100 border-amber-600 ring-2 ring-amber-400'
+                    : 'border-amber-900/20 bg-white/50'
+                }`}
+              >
                 <div className="flex justify-between items-center text-[9px] text-slate-500 font-semibold mb-0.5">
                   <span>DATE OF ISSUE</span>
                   <span>تاريخ الإصدار</span>
                 </div>
                 <div className="flex justify-between items-center font-bold text-xs font-mono text-slate-900">
-                  <span>{data.issueDate ? data.issueDate.split('-').reverse().join('/') : 'DD/MM/YYYY'}</span>
-                  <span>{data.issueDate ? data.issueDate.replace(/-/g, '/') : 'YYYY/MM/DD'}</span>
+                  <span>{formatPassportDate(data.issueDate).en}</span>
+                  <span>{formatPassportDate(data.issueDate).ar}</span>
                 </div>
               </div>
 
@@ -454,8 +504,8 @@ export const PassportPreview: React.FC<PassportPreviewProps> = ({
                   <span>تاريخ الإنتهاء</span>
                 </div>
                 <div className="flex justify-between items-center font-bold text-xs font-mono text-emerald-800">
-                  <span>{data.expiryDate ? data.expiryDate.split('-').reverse().join('/') : 'DD/MM/YYYY'}</span>
-                  <span>{data.expiryDate ? data.expiryDate.replace(/-/g, '/') : 'YYYY/MM/DD'}</span>
+                  <span>{formatPassportDate(data.expiryDate).en}</span>
+                  <span>{formatPassportDate(data.expiryDate).ar}</span>
                 </div>
               </div>
             </div>
