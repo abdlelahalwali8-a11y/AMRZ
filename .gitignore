@@ -1,8 +1,10 @@
 node_modules/
 build/
 dist/
+.vercel
 coverage/
-.DS_Store
 *.log
+.DS_Store
 .env*
 !.env.example
+

@@ -109,6 +109,8 @@ Return JSON only.`;
   }
 });
 
+export default app;
+
 async function startServer() {
   // Vite middleware in dev mode
   if (process.env.NODE_ENV !== 'production') {
@@ -131,4 +133,7 @@ async function startServer() {
   });
 }
 
-startServer();
+if (process.env.VERCEL !== '1' && process.env.VERCEL_ENV === undefined) {
+  startServer();
+}
+
