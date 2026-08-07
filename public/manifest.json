@@ -1,0 +1,41 @@
+{
+  "name": "نظام الجوازات والقراءة الآلية ICAO 9303",
+  "short_name": "الجوازات ICAO",
+  "description": "تطبيق PWA تقدمي مخصص لإنشاء ومسح وتحليل بيانات الجوازات والوثائق الرسمية بحسب معايير ICAO 9303 مع دعم العمل بدون اتصال بالإنترنت والباركود",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "lang": "ar",
+  "dir": "rtl",
+  "categories": ["utilities", "productivity", "government"],
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "المسح الذكي للخطوط",
+      "short_name": "المسح",
+      "description": "مسح جواز سفر وقراءة MRZ",
+      "url": "/?tab=scanner"
+    },
+    {
+      "name": "استوديو الباركود",
+      "short_name": "الباركود",
+      "description": "توليد كود PDF417 للجوازات",
+      "url": "/?tab=barcodes"
+    }
+  ]
+}

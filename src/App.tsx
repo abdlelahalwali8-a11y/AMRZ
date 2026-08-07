@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { PassportData, ActiveTab } from './types/passport';
 import { SAMPLE_PASSPORTS } from './utils/sampleData';
 import { Header } from './components/Header';
+import { PWAHeaderBar } from './components/PWAHeaderBar';
 import { PassportPreview } from './components/PassportPreview';
 import { MRZEditor } from './components/MRZEditor';
 import { MRZValidator } from './components/MRZValidator';
@@ -48,6 +49,9 @@ export default function App() {
   return (
     <div className={`min-h-screen bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans transition-colors duration-200 flex flex-col justify-between`}>
       <div>
+        {/* PWA Header Control Bar (Online/Offline, App Installation, Push Notifications) */}
+        <PWAHeaderBar lang={lang} />
+
         <Header
           activeTab={activeTab}
           onTabChange={setActiveTab}
