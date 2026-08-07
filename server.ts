@@ -42,56 +42,40 @@ app.post('/api/scan-passport', async (req, res) => {
     const cleanBase64 = image.replace(/^data:image\/\w+;base64,/, '');
 
     const prompt = `You are an expert official passport OCR and ICAO 9303 Machine Readable Zone (MRZ) reader.
-Analyze this passport image and extract all visible data accurately in both English and Arabic where present.
+Analyze the provided passport image carefully and extract all visible text and fields with 100% accuracy in both English and Arabic.
 
-Crucial Instructions:
-1. Identify the 2 MRZ lines at the bottom of the passport (TD3 format, each exactly 44 characters).
-2. Extract the printed English and Arabic fields accurately:
-   - Surname in English (e.g., HEBAH, AL HASHIMI)
-   - Surname in Arabic (e.g., هبه, الهاشمي)
-   - Given Names in English (e.g., MOHAMMED MOHAMMED HUSSEIN)
-   - Given Names in Arabic (e.g., محمد محمد حسين)
-   - Passport Number (9 chars/digits, e.g., 14704563)
-   - Country/Issuing State Code (3-letter ISO, e.g. YEM, SAU, EGY)
-   - Nationality Code (3-letter ISO, e.g. YEM, SAU, EGY)
-   - Date of Birth (YYYY-MM-DD format)
-   - Date of Issue (YYYY-MM-DD format)
-   - Date of Expiry (YYYY-MM-DD format)
-   - Sex ('M' or 'F')
-   - Profession in English (e.g., LABORER, ENGINEER, STUDENT)
-   - Profession in Arabic (e.g., عامل, مهندس, طالب)
-   - Place of Birth in English (e.g., ALMAHWEET - YEM, SANAA)
-   - Place of Birth in Arabic (e.g., اليمن - المحويت, صنعاء)
-   - Issuing Authority in English (e.g., ADEN, SANAA)
-   - Issuing Authority in Arabic (e.g., عدن, صنعاء)
-   - Personal Number / ID Number (if present)
+Instructions for Extraction:
+1. Locate the 2 MRZ lines at the bottom of the passport (TD3 format, exactly 44 characters per line).
+2. Extract the printed English and Arabic fields:
+   - "passportNumber": The passport number (9 characters/digits, e.g., 13966269 or 14704563).
+   - "surname": Surname / Family name in English (e.g., AL-ZAHEAH, HEBAH, AL HASHIMI).
+   - "surnameAr": Surname in Arabic (اللقب - e.g., الزحيه, هبه).
+   - "givenNames": Given / First & Middle names in English (e.g., MOHAMMED SHAWQI MOHAMMED HASAN).
+   - "givenNamesAr": Given names in Arabic (الاسم / الاسم الكامل - e.g., محمد شوقي محمد حسن).
+   - "documentType": Type of document, usually 'P'.
+   - "issuingState": 3-letter ISO country code (e.g., YEM, SAU, EGY).
+   - "nationality": 3-letter ISO nationality code (e.g., YEM, SAU, EGY).
+   - "birthDate": Date of birth in YYYY-MM-DD format (convert DD/MM/YYYY e.g. 02/02/2004 to 2004-02-02).
+   - "issueDate": Date of issue in YYYY-MM-DD format (convert DD/MM/YYYY e.g. 17/04/2024 to 2024-04-17).
+   - "expiryDate": Date of expiry in YYYY-MM-DD format (convert DD/MM/YYYY e.g. 17/04/2030 to 2030-04-17).
+   - "sex": Gender ('M' or 'F').
+   - "profession": Profession in English (e.g., LABORER, ENGINEER, STUDENT).
+   - "professionAr": Profession in Arabic (المهنة - e.g., عامل, مهندس, طالب).
+   - "placeOfBirth": Place of birth in English (e.g., ALMAHWEET - YEM, SANAA).
+   - "placeOfBirthAr": Place of birth in Arabic (محل الميلاد - e.g., اليمن - المحويت, صنعاء).
+   - "issuingAuthority": Issuing Authority in English (e.g., KHAWKHAH, ADEN, SANAA).
+   - "issuingAuthorityAr": Issuing Authority in Arabic (جهة الإصدار - e.g., الخوخة, عدن, صنعاء).
+   - "personalNumber": Personal ID number if present (or empty string).
+   - "mrzLine1": Exact MRZ Line 1 (44 characters).
+   - "mrzLine2": Exact MRZ Line 2 (44 characters).
 
-Return ONLY valid JSON matching this exact structure without markdown code blocks:
-{
-  "mrzLine1": "P<YEMHEBAH<<MOHAMMED<MOHAMMED<HUSSEIN<<<<<<<<",
-  "mrzLine2": "14704563<4YEM0301121M3011272<<<<<<<<<<<<<<00",
-  "surname": "HEBAH",
-  "surnameAr": "هبه",
-  "givenNames": "MOHAMMED MOHAMMED HUSSEIN",
-  "givenNamesAr": "محمد محمد حسين",
-  "passportNumber": "14704563",
-  "issuingState": "YEM",
-  "nationality": "YEM",
-  "birthDate": "2003-01-12",
-  "issueDate": "2024-11-27",
-  "expiryDate": "2030-11-27",
-  "sex": "M",
-  "profession": "LABORER",
-  "professionAr": "عامل",
-  "placeOfBirth": "ALMAHWEET - YEM",
-  "placeOfBirthAr": "اليمن - المحويت",
-  "issuingAuthority": "ADEN",
-  "issuingAuthorityAr": "عدن",
-  "personalNumber": ""
-}`;
+Return JSON only.`;
 
     const response = await ai.models.generateContent({
       model: 'gemini-3.6-flash',
+      config: {
+        responseMimeType: 'application/json'
+      },
       contents: [
         {
           role: 'user',

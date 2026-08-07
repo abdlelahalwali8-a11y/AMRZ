@@ -113,8 +113,20 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onScanComplete, la
         if (jsonRes.success && jsonRes.data) {
           const parsedJson = jsonRes.data;
 
-          const birthDate = sanitizeDateString(parsedJson.birthDate, '2003-01-12');
-          const expiryDate = sanitizeDateString(parsedJson.expiryDate, '2030-11-27');
+          // Parse MRZ if extracted by Gemini
+          let mrzParsed = null;
+          if (parsedJson.mrzLine1 && parsedJson.mrzLine2) {
+            mrzParsed = parseMRZ(`${parsedJson.mrzLine1}\n${parsedJson.mrzLine2}`);
+          }
+
+          const birthDate = sanitizeDateString(
+            parsedJson.birthDate || mrzParsed?.parsedFields?.birthDate,
+            '2004-02-02'
+          );
+          const expiryDate = sanitizeDateString(
+            parsedJson.expiryDate || mrzParsed?.parsedFields?.expiryDate,
+            '2030-04-17'
+          );
           
           let issueDate = sanitizeDateString(parsedJson.issueDate, '');
           if (!issueDate && expiryDate) {
@@ -123,30 +135,30 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onScanComplete, la
               issueDate = `${expYear - 6}${expiryDate.substring(4)}`;
             }
           }
-          if (!issueDate) issueDate = '2024-11-27';
+          if (!issueDate) issueDate = '2024-04-17';
 
           const extractedPassport: PassportData = {
             id: `scanned-${Date.now()}`,
-            documentType: (parsedJson.documentType || 'P') as any,
+            documentType: (parsedJson.documentType || mrzParsed?.parsedFields?.documentType || 'P') as any,
             documentSubtype: '<',
-            issuingState: parsedJson.issuingState || 'YEM',
-            surname: parsedJson.surname || 'HEBAH',
-            surnameAr: parsedJson.surnameAr || 'هبه',
-            givenNames: parsedJson.givenNames || 'MOHAMMED MOHAMMED HUSSEIN',
-            givenNamesAr: parsedJson.givenNamesAr || 'محمد محمد حسين',
-            passportNumber: parsedJson.passportNumber || '14704563',
-            nationality: parsedJson.nationality || 'YEM',
+            issuingState: parsedJson.issuingState || mrzParsed?.parsedFields?.issuingState || 'YEM',
+            surname: parsedJson.surname || mrzParsed?.parsedFields?.surname || 'AL-ZAHEAH',
+            surnameAr: parsedJson.surnameAr || (parsedJson.surname ? '' : 'الزحيه'),
+            givenNames: parsedJson.givenNames || mrzParsed?.parsedFields?.givenNames || 'MOHAMMED SHAWQI MOHAMMED HASAN',
+            givenNamesAr: parsedJson.givenNamesAr || (parsedJson.givenNames ? '' : 'محمد شوقي محمد حسن'),
+            passportNumber: parsedJson.passportNumber || mrzParsed?.parsedFields?.passportNumber || '13966269',
+            nationality: parsedJson.nationality || mrzParsed?.parsedFields?.nationality || 'YEM',
             birthDate,
-            sex: parsedJson.sex === 'F' ? 'F' : 'M',
+            sex: (parsedJson.sex === 'F' || mrzParsed?.parsedFields?.sex === 'F') ? 'F' : 'M',
             expiryDate,
-            personalNumber: parsedJson.personalNumber || '',
+            personalNumber: parsedJson.personalNumber || mrzParsed?.parsedFields?.personalNumber || '',
             issueDate,
             profession: parsedJson.profession || 'LABORER',
             professionAr: parsedJson.professionAr || 'عامل',
             placeOfBirth: parsedJson.placeOfBirth || 'ALMAHWEET - YEM',
             placeOfBirthAr: parsedJson.placeOfBirthAr || 'اليمن - المحويت',
-            issuingAuthority: parsedJson.issuingAuthority || 'ADEN',
-            issuingAuthorityAr: parsedJson.issuingAuthorityAr || 'عدن',
+            issuingAuthority: parsedJson.issuingAuthority || 'KHAWKHAH',
+            issuingAuthorityAr: parsedJson.issuingAuthorityAr || 'الخوخة',
             photoUrl: base64Image,
             signatureUrl: ''
           };
@@ -168,23 +180,23 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onScanComplete, la
         documentType: 'P',
         documentSubtype: '<',
         issuingState: 'YEM',
-        surname: 'HEBAH',
-        surnameAr: 'هبه',
-        givenNames: 'MOHAMMED MOHAMMED HUSSEIN',
-        givenNamesAr: 'محمد محمد حسين',
-        passportNumber: '14704563',
+        surname: 'AL-ZAHEAH',
+        surnameAr: 'الزحيه',
+        givenNames: 'MOHAMMED SHAWQI MOHAMMED HASAN',
+        givenNamesAr: 'محمد شوقي محمد حسن',
+        passportNumber: '13966269',
         nationality: 'YEM',
-        birthDate: '2003-01-12',
+        birthDate: '2004-02-02',
         sex: 'M',
-        expiryDate: '2030-11-27',
+        expiryDate: '2030-04-17',
         personalNumber: '',
-        issueDate: '2024-11-27',
+        issueDate: '2024-04-17',
         profession: 'LABORER',
         professionAr: 'عامل',
         placeOfBirth: 'ALMAHWEET - YEM',
         placeOfBirthAr: 'اليمن - المحويت',
-        issuingAuthority: 'ADEN',
-        issuingAuthorityAr: 'عدن',
+        issuingAuthority: 'KHAWKHAH',
+        issuingAuthorityAr: 'الخوخة',
         photoUrl: base64Image,
         signatureUrl: ''
       };

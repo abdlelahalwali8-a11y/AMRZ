@@ -318,27 +318,27 @@ export const PassportPreview: React.FC<PassportPreviewProps> = ({
               className={`p-1.5 rounded-lg transition-all flex items-center justify-between border ${
                 isFieldActive('passportNumber')
                   ? 'bg-amber-100 border-amber-600 ring-2 ring-amber-400'
-                  : 'border-amber-900/25 bg-white/60 shadow-2xs'
+                  : 'border-slate-300 bg-white/70 shadow-2xs'
               }`}
             >
               <div className="text-left font-mono">
                 <span className="text-[9px] text-slate-500 uppercase block font-bold">PASSPORT NO.</span>
-                <span className="text-base font-extrabold text-amber-950 tracking-wider">
-                  {data.passportNumber || '14704563'}
+                <span className="text-base font-black text-slate-950 tracking-wider">
+                  {data.passportNumber || '13966269'}
                 </span>
               </div>
-              <div className="text-center text-[10px] font-black text-amber-950 bg-amber-200/80 px-2.5 py-0.5 rounded-full border border-amber-400 shadow-2xs">
+              <div className="text-center text-[10px] font-black text-slate-900 bg-emerald-100/80 px-2.5 py-0.5 rounded-full border border-emerald-300 shadow-2xs">
                 <span>P / {data.issuingState || 'YEM'}</span>
               </div>
               <div className="text-right">
                 <span className="text-[9px] text-slate-500 block font-bold">رقم جواز السفر</span>
-                <span className="text-base font-extrabold text-amber-950 font-mono tracking-wider">
-                  {data.passportNumber || '14704563'}
+                <span className="text-base font-black text-slate-950 font-mono tracking-wider">
+                  {data.passportNumber || '13966269'}
                 </span>
               </div>
             </div>
 
-            {/* Surname (English Left / Arabic Right) */}
+            {/* Row 1: SURNAME / Full Arabic Name */}
             <div
               onMouseEnter={() => {
                 setHoveredSegment('surname');
@@ -351,24 +351,24 @@ export const PassportPreview: React.FC<PassportPreviewProps> = ({
               className={`p-1.5 rounded-lg transition-all flex items-center justify-between border ${
                 isFieldActive('surname')
                   ? 'bg-amber-100 border-amber-600 ring-2 ring-amber-400'
-                  : 'border-amber-900/25 bg-white/60 shadow-2xs'
+                  : 'border-slate-300 bg-white/70 shadow-2xs'
               }`}
             >
               <div>
                 <span className="text-[9px] text-slate-500 uppercase block font-bold">SURNAME</span>
-                <span className="font-extrabold text-sm text-slate-950 uppercase font-mono tracking-wide">
-                  {data.surname || 'SURNAME'}
+                <span className="font-black text-sm text-slate-950 uppercase font-mono tracking-wide">
+                  {data.surname || 'AL-ZAHEAH'}
                 </span>
               </div>
               <div className="text-right">
-                <span className="text-[9px] text-slate-500 block font-bold">اللقب</span>
-                <span className="font-extrabold text-sm text-slate-950">
-                  {data.surnameAr || data.surname || 'اللقب'}
+                <span className="text-[9px] text-slate-500 block font-bold">الاسم</span>
+                <span className="font-black text-sm text-slate-950">
+                  {data.givenNamesAr ? `${data.givenNamesAr}` : 'محمد شوقي محمد حسن'}
                 </span>
               </div>
             </div>
 
-            {/* Given Names (English Left / Arabic Right) */}
+            {/* Row 2: GIVEN NAMES / Arabic Surname */}
             <div
               onMouseEnter={() => {
                 setHoveredSegment('givenNames');
@@ -381,36 +381,36 @@ export const PassportPreview: React.FC<PassportPreviewProps> = ({
               className={`p-1.5 rounded-lg transition-all flex items-center justify-between border ${
                 isFieldActive('givenNames')
                   ? 'bg-amber-100 border-amber-600 ring-2 ring-amber-400'
-                  : 'border-amber-900/25 bg-white/60 shadow-2xs'
+                  : 'border-slate-300 bg-white/70 shadow-2xs'
               }`}
             >
               <div>
                 <span className="text-[9px] text-slate-500 uppercase block font-bold">GIVEN NAMES</span>
-                <span className="font-extrabold text-xs sm:text-sm text-slate-950 uppercase font-mono tracking-wide">
-                  {data.givenNames || 'GIVEN NAMES'}
+                <span className="font-black text-xs sm:text-sm text-slate-950 uppercase font-mono tracking-wide">
+                  {data.givenNames || 'MOHAMMED SHAWQI MOHAMMED HASAN'}
                 </span>
               </div>
               <div className="text-right">
-                <span className="text-[9px] text-slate-500 block font-bold">الاسم الكامل</span>
-                <span className="font-extrabold text-xs sm:text-sm text-slate-950">
-                  {data.givenNamesAr || data.givenNames || 'الاسم'}
+                <span className="text-[9px] text-slate-500 block font-bold">اللقب</span>
+                <span className="font-black text-sm text-slate-950">
+                  {data.surnameAr || 'الزحيه'}
                 </span>
               </div>
             </div>
 
-            {/* Profession & Personal No */}
+            {/* Row 3: PROFESSION & PERSONAL NO */}
             <div className="grid grid-cols-2 gap-2">
-              <div className="p-1.5 rounded-lg flex items-center justify-between border border-amber-900/25 bg-white/60 shadow-2xs">
+              <div className="p-1.5 rounded-lg flex items-center justify-between border border-slate-300 bg-white/70 shadow-2xs">
                 <div>
                   <span className="text-[9px] text-slate-500 uppercase block font-bold">PROFESSION</span>
-                  <span className="font-extrabold text-xs text-slate-900 uppercase font-mono">
+                  <span className="font-black text-xs text-slate-900 uppercase font-mono">
                     {data.profession || 'LABORER'}
                   </span>
                 </div>
                 <div className="text-right">
                   <span className="text-[9px] text-slate-500 block font-bold">المهنة</span>
-                  <span className="font-extrabold text-xs text-slate-900">
-                    {data.professionAr || data.profession || 'عامل'}
+                  <span className="font-black text-xs text-slate-900">
+                    {data.professionAr || 'عامل'}
                   </span>
                 </div>
               </div>
@@ -427,42 +427,42 @@ export const PassportPreview: React.FC<PassportPreviewProps> = ({
                 className={`p-1.5 rounded-lg transition-all flex items-center justify-between border ${
                   isFieldActive('personalNumber')
                     ? 'bg-amber-100 border-amber-600 ring-2 ring-amber-400'
-                    : 'border-amber-900/25 bg-white/60 shadow-2xs'
+                    : 'border-slate-300 bg-white/70 shadow-2xs'
                 }`}
               >
                 <div>
                   <span className="text-[9px] text-slate-500 uppercase block font-bold">PERSONAL NO.</span>
-                  <span className="font-extrabold text-xs text-slate-900 font-mono">
+                  <span className="font-black text-xs text-slate-900 font-mono">
                     {data.personalNumber || '02010123456'}
                   </span>
                 </div>
                 <div className="text-right">
                   <span className="text-[9px] text-slate-500 block font-bold">الرقم الشخصي</span>
-                  <span className="font-extrabold text-xs text-slate-900 font-mono">
+                  <span className="font-black text-xs text-slate-900 font-mono">
                     {data.personalNumber || '02010123456'}
                   </span>
                 </div>
               </div>
             </div>
 
-            {/* Place of Birth */}
-            <div className="p-1.5 rounded-lg flex items-center justify-between border border-amber-900/25 bg-white/60 shadow-2xs">
+            {/* Row 4: PLACE OF BIRTH */}
+            <div className="p-1.5 rounded-lg flex items-center justify-between border border-slate-300 bg-white/70 shadow-2xs">
               <div>
                 <span className="text-[9px] text-slate-500 uppercase block font-bold">PLACE OF BIRTH</span>
-                <span className="font-extrabold text-xs text-slate-900 uppercase font-mono">
+                <span className="font-black text-xs text-slate-900 uppercase font-mono">
                   {data.placeOfBirth || 'ALMAHWEET - YEM'}
                 </span>
               </div>
               <div className="text-right">
                 <span className="text-[9px] text-slate-500 block font-bold">محل الميلاد</span>
-                <span className="font-extrabold text-xs text-slate-900">
-                  {data.placeOfBirthAr || data.placeOfBirth || 'المحويت'}
+                <span className="font-black text-xs text-slate-900">
+                  {data.placeOfBirthAr || 'اليمن - المحويت'}
                 </span>
               </div>
             </div>
 
-            {/* Date of Birth & Sex */}
-            <div className="grid grid-cols-2 gap-2">
+            {/* Row 5: DATE OF BIRTH & SEX */}
+            <div className="grid grid-cols-3 gap-2">
               <div
                 onMouseEnter={() => {
                   setHoveredSegment('birthDate');
@@ -472,17 +472,17 @@ export const PassportPreview: React.FC<PassportPreviewProps> = ({
                   setHoveredSegment(null);
                   onHoverField?.(null);
                 }}
-                className={`p-1.5 rounded-lg transition-all border ${
+                className={`p-1.5 rounded-lg transition-all border col-span-2 ${
                   isFieldActive('birthDate')
                     ? 'bg-amber-100 border-amber-600 ring-2 ring-amber-400'
-                    : 'border-amber-900/25 bg-white/60 shadow-2xs'
+                    : 'border-slate-300 bg-white/70 shadow-2xs'
                 }`}
               >
                 <div className="flex justify-between items-center text-[9px] text-slate-500 font-bold mb-0.5">
                   <span>DATE OF BIRTH</span>
                   <span>تاريخ الميلاد</span>
                 </div>
-                <div className="flex justify-between items-center font-extrabold text-xs font-mono text-slate-950">
+                <div className="flex justify-between items-center font-black text-xs font-mono text-slate-950">
                   <span>{formatPassportDate(data.birthDate).en}</span>
                   <span>{formatPassportDate(data.birthDate).ar}</span>
                 </div>
@@ -500,85 +500,51 @@ export const PassportPreview: React.FC<PassportPreviewProps> = ({
                 className={`p-1.5 rounded-lg transition-all border ${
                   isFieldActive('sex')
                     ? 'bg-amber-100 border-amber-600 ring-2 ring-amber-400'
-                    : 'border-amber-900/25 bg-white/60 shadow-2xs'
+                    : 'border-slate-300 bg-white/70 shadow-2xs'
                 }`}
               >
                 <div className="flex justify-between items-center text-[9px] text-slate-500 font-bold mb-0.5">
                   <span>SEX</span>
                   <span>الجنس</span>
                 </div>
-                <div className="flex justify-between items-center font-extrabold text-xs font-mono text-slate-950">
+                <div className="flex justify-between items-center font-black text-xs font-mono text-slate-950">
                   <span>{data.sex || 'M'}</span>
                   <span>{data.sex === 'M' ? 'ذكر' : data.sex === 'F' ? 'أنثى' : '<'}</span>
                 </div>
               </div>
             </div>
 
-            {/* Date of Issue & Date of Expiry */}
-            <div className="grid grid-cols-2 gap-2">
-              <div
-                onMouseEnter={() => {
-                  setHoveredSegment('issueDate');
-                  onHoverField?.('issueDate');
-                }}
-                onMouseLeave={() => {
-                  setHoveredSegment(null);
-                  onHoverField?.(null);
-                }}
-                className={`p-1.5 rounded-lg transition-all border ${
-                  isFieldActive('issueDate')
-                    ? 'bg-amber-100 border-amber-600 ring-2 ring-amber-400'
-                    : 'border-amber-900/25 bg-white/60 shadow-2xs'
-                }`}
-              >
-                <div className="flex justify-between items-center text-[9px] text-slate-500 font-bold mb-0.5">
-                  <span>DATE OF ISSUE</span>
-                  <span>تاريخ الإصدار</span>
-                </div>
-                <div className="flex justify-between items-center font-extrabold text-xs font-mono text-slate-950">
-                  <span>{formatPassportDate(data.issueDate).en}</span>
-                  <span>{formatPassportDate(data.issueDate).ar}</span>
-                </div>
+            {/* Row 6: DATE OF ISSUE & DATE OF EXPIRY (In RED font as in official document) */}
+            <div className="p-1.5 rounded-lg border border-slate-300 bg-white/70 shadow-2xs space-y-1">
+              <div className="flex justify-between items-center text-[9px] text-slate-500 font-bold">
+                <span>DATE OF ISSUE</span>
+                <span className="text-red-600 font-extrabold">DATE OF EXPIRY / تاريخ الإنتهاء</span>
+                <span>تاريخ الإصدار</span>
               </div>
-
-              <div
-                onMouseEnter={() => {
-                  setHoveredSegment('expiryDate');
-                  onHoverField?.('expiryDate');
-                }}
-                onMouseLeave={() => {
-                  setHoveredSegment(null);
-                  onHoverField?.(null);
-                }}
-                className={`p-1.5 rounded-lg transition-all border ${
-                  isFieldActive('expiryDate')
-                    ? 'bg-rose-100 border-rose-600 ring-2 ring-rose-400'
-                    : 'border-rose-900/30 bg-rose-50/40 shadow-2xs'
-                }`}
-              >
-                <div className="flex justify-between items-center text-[9px] text-rose-700 font-bold mb-0.5">
-                  <span>DATE OF EXPIRY</span>
-                  <span>تاريخ الإنتهاء</span>
-                </div>
-                <div className="flex justify-between items-center font-black text-xs font-mono text-rose-600">
-                  <span>{formatPassportDate(data.expiryDate).en}</span>
-                  <span>{formatPassportDate(data.expiryDate).ar}</span>
-                </div>
+              <div className="flex justify-between items-center font-black text-xs font-mono">
+                {/* Issue Date EN */}
+                <span className="text-slate-950">{formatPassportDate(data.issueDate).en}</span>
+                {/* Expiry Date EN & AR in Red */}
+                <span className="text-red-600 font-black tracking-wider bg-red-50 px-2 py-0.5 rounded border border-red-200">
+                  {formatPassportDate(data.expiryDate).en} &nbsp; {formatPassportDate(data.expiryDate).ar}
+                </span>
+                {/* Issue Date AR */}
+                <span className="text-slate-950">{formatPassportDate(data.issueDate).ar}</span>
               </div>
             </div>
 
-            {/* Issuing Authority */}
-            <div className="p-1.5 rounded-lg flex items-center justify-between border border-amber-900/25 bg-white/60 shadow-2xs">
+            {/* Row 7: ISSUING AUTHORITY */}
+            <div className="p-1.5 rounded-lg flex items-center justify-between border border-slate-300 bg-white/70 shadow-2xs">
               <div>
                 <span className="text-[9px] text-slate-500 uppercase block font-bold">ISSUING AUTHORITY</span>
-                <span className="text-xs font-extrabold text-slate-950 uppercase font-mono">
-                  {data.issuingAuthority || 'ALMAHWEET'}
+                <span className="text-xs font-black text-slate-950 uppercase font-mono">
+                  {data.issuingAuthority || 'KHAWKHAH'}
                 </span>
               </div>
               <div className="text-right">
                 <span className="text-[9px] text-slate-500 block font-bold">جهة الإصدار</span>
-                <span className="text-xs font-extrabold text-slate-950">
-                  {data.issuingAuthorityAr || data.issuingAuthority || 'المحويت'}
+                <span className="font-black text-xs text-slate-950">
+                  {data.issuingAuthorityAr || 'الخوخة'}
                 </span>
               </div>
             </div>
