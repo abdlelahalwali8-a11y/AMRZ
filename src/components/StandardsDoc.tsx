@@ -1,5 +1,5 @@
 import React from 'react';
-import { BookOpen, ShieldCheck, Check, Info, FileText } from 'lucide-react';
+import { BookOpen, ShieldCheck, FileCode, CheckCircle, ExternalLink } from 'lucide-react';
 
 interface StandardsDocProps {
   lang?: 'ar' | 'en';
@@ -7,69 +7,106 @@ interface StandardsDocProps {
 
 export const StandardsDoc: React.FC<StandardsDocProps> = ({ lang = 'ar' }) => {
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
-      <div className="flex items-center gap-3 pb-4 border-b border-slate-200 dark:border-slate-800">
-        <div className="w-10 h-10 bg-amber-100 dark:bg-amber-950/60 rounded-xl flex items-center justify-center text-amber-700 dark:text-amber-300">
-          <BookOpen className="w-5 h-5" />
-        </div>
-        <div>
-          <h3 className="text-base font-bold text-slate-900 dark:text-white">
-            {lang === 'ar' ? 'الدليل المعياري الدولي للقراءة الآلية (ICAO Doc 9303 Specifications)' : 'ICAO Doc 9303 Standards Guide'}
+    <div className="space-y-6">
+      
+      {/* Header */}
+      <div className="p-5 bg-slate-900 border border-slate-800 rounded-2xl">
+        <h2 className="text-base font-bold text-slate-100 flex items-center gap-2">
+          <BookOpen className="w-5 h-5 text-amber-400" />
+          {lang === 'ar' ? 'الدليل المعياري لمنظمة الطيران المدني الدولي (ICAO Doc 9303)' : 'ICAO Doc 9303 Standard Guidelines'}
+        </h2>
+        <p className="text-xs text-slate-400 mt-0.5">
+          {lang === 'ar' ? 'شرح تفصيلي لبنية أسطر القراءة الآلية MRZ TD3 وخوارزميات أرقام التحقق والباركود' : 'Detailed specification for TD3 MRZ, checksums, and border control barcodes'}
+        </p>
+      </div>
+
+      {/* Grid of specifications */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs text-slate-300">
+        
+        {/* TD3 Structure */}
+        <div className="p-5 bg-slate-900 border border-slate-800 rounded-2xl space-y-3">
+          <h3 className="font-bold text-sm text-slate-100 flex items-center gap-2">
+            <FileCode className="w-4 h-4 text-emerald-400" />
+            {lang === 'ar' ? '1. هيكلية جوازات السفر TD3 (سطرين × 44 حرفاً)' : '1. TD3 MRTD Layout (2 lines x 44 chars)'}
           </h3>
-          <p className="text-xs text-slate-500">
+          
+          <div className="space-y-2">
+            <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 font-mono text-[11px] text-amber-400">
+              <div><strong>Line 1:</strong> P&lt;[State 3][Surname]&lt;&lt;[Given Names]...</div>
+              <div><strong>Line 2:</strong> [Passport 9][Chk 1][Nat 3][DOB 6][Chk 1][Sex 1][Exp 6][Chk 1][ID 14][Chk 1][Composite 1]</div>
+            </div>
+            
+            <p className="leading-relaxed">
+              {lang === 'ar'
+                ? 'وفق الجزء الرابع من وثيقة ICAO Doc 9303، يتكون سطر MRZ الخاص بجواز السفر القياسي من 44 خانة ثابتة تحتوي حصراً على الحروف اللاتينية الكبيرة (A-Z)، والأرقام (0-9)، ورمز الملء الفاصل (<).'
+                : 'Under ICAO Doc 9303 Part 4, passport MRZ contains exactly 2 lines of 44 characters containing uppercase A-Z, 0-9, and < filler.'}
+            </p>
+          </div>
+        </div>
+
+        {/* Checksum Weights 7-3-1 */}
+        <div className="p-5 bg-slate-900 border border-slate-800 rounded-2xl space-y-3">
+          <h3 className="font-bold text-sm text-slate-100 flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-amber-400" />
+            {lang === 'ar' ? '2. خوارزمية أرقام التحقق (7-3-1 Weight Algorithm)' : '2. 7-3-1 Checksum Weight Algorithm'}
+          </h3>
+
+          <div className="space-y-2 leading-relaxed">
+            <p>
+              {lang === 'ar'
+                ? 'يتم فحص وتدقيق كل حقل رقمي بضرب القيم في تسلسل الأوزان الدورية [7, 3, 1] وحساب باقي القسمة على 10 (Modulo 10).'
+                : 'Characters are mapped to numeric values (A=10..Z=35, <=0) multiplied by repeating weights 7, 3, 1, and modulo 10 is calculated.'}
+            </p>
+            <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-1">
+              <div className="flex justify-between">
+                <span>0-9:</span>
+                <span className="font-mono text-slate-200">القيم 0 إلى 9</span>
+              </div>
+              <div className="flex justify-between">
+                <span>A-Z:</span>
+                <span className="font-mono text-slate-200">القيم 10 إلى 35</span>
+              </div>
+              <div className="flex justify-between">
+                <span>رمز الملء (&lt;):</span>
+                <span className="font-mono text-slate-200">القيمة 0</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* PDF417 & 2D Barcodes */}
+        <div className="p-5 bg-slate-900 border border-slate-800 rounded-2xl space-y-3">
+          <h3 className="font-bold text-sm text-slate-100 flex items-center gap-2">
+            <CheckCircle className="w-4 h-4 text-cyan-400" />
+            {lang === 'ar' ? '3. معايير باركود PDF417' : '3. PDF417 Barcode Standard'}
+          </h3>
+
+          <p className="leading-relaxed">
             {lang === 'ar'
-              ? 'المواصفات الفنية الرسمية للجوازات والوثائق الصادرة عن منظمة الطيران المدني الدولي (ICAO)'
-              : 'Official Technical Specifications for Machine Readable Travel Documents (MRTD)'}
+              ? 'باركود مصفوفي ثنائي الأبعاد عالي الكثافة (2D Barcode) معتمد عالمياً في أنظمة مراقبة الحدود والمنافذ، يتميز بقدرة عالية على تصحيح الأخطاء (Error Correction Levels 0 to 8) حتى في حال تلف جزء من الوثيقة.'
+              : 'High-density 2D barcode widely adopted by border control agencies for document security and automated passenger clearance.'}
           </p>
         </div>
-      </div>
 
-      {/* Overview Card */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2">
-          <h4 className="font-bold text-xs text-amber-900 dark:text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
-            <ShieldCheck className="w-4 h-4 text-amber-600" />
-            هيكلية السطر الأول (Line 1 - 44 Characters)
-          </h4>
-          <ul className="text-xs space-y-1 text-slate-700 dark:text-slate-300 font-mono">
-            <li><strong>الخانات 1-2:</strong> رمز نوع الوثيقة (مثال: P&lt; للجواز العادي، PD للدبلوماسي)</li>
-            <li><strong>الخانات 3-5:</strong> رمز دولة الإصدار المعياري ISO 3166-1 (مثال: SAU, YEM, EGY)</li>
-            <li><strong>الخانات 6-44:</strong> اسم صاحب الجواز (اللقب &lt;&lt; الأسماء الأولى) مفصولة بـ &lt;</li>
-          </ul>
+        {/* ICAO Doc 9303 Compliance Links */}
+        <div className="p-5 bg-slate-900 border border-slate-800 rounded-2xl space-y-3 flex flex-col justify-between">
+          <div>
+            <h3 className="font-bold text-sm text-slate-100 flex items-center gap-2">
+              <ExternalLink className="w-4 h-4 text-amber-400" />
+              {lang === 'ar' ? '4. المراجع الرسمية المعتمدة' : '4. Official Standards & Specs'}
+            </h3>
+            <p className="leading-relaxed mt-2">
+              {lang === 'ar'
+                ? 'تم بناء هذا النظام استناداً إلى أحدث وثائق منظمة الطيران المدني الدولي (ICAO) التابعة للأمم المتحدة والمواصفة القياسية ISO/IEC 7501-1.'
+                : 'Built according to United Nations ICAO Doc 9303 MRTD specifications and ISO/IEC 7501-1 standards.'}
+            </p>
+          </div>
+
+          <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-[11px] text-slate-400">
+            ICAO Doc 9303 • Machine Readable Travel Documents • Part 4 (TD3 Format)
+          </div>
         </div>
 
-        <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2">
-          <h4 className="font-bold text-xs text-amber-900 dark:text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
-            <ShieldCheck className="w-4 h-4 text-amber-600" />
-            هيكلية السطر الثاني (Line 2 - 44 Characters)
-          </h4>
-          <ul className="text-xs space-y-1 text-slate-700 dark:text-slate-300 font-mono">
-            <li><strong>الخانات 1-9:</strong> رقم الجواز (متبوعاً بـ &lt; إذا أقل من 9)</li>
-            <li><strong>الخانة 10:</strong> رمز التحقق لرقم الجواز (Check Digit)</li>
-            <li><strong>الخانات 11-13:</strong> رمز جنسية المالك (ISO 3166-1)</li>
-            <li><strong>الخانات 14-19:</strong> تاريخ الميلاد بترميز YYMMDD + الخانة 20 رمز التحقق</li>
-            <li><strong>الخانة 21:</strong> الجنس (M / F / &lt;)</li>
-            <li><strong>الخانات 22-27:</strong> تاريخ الانتهاء بترميز YYMMDD + الخانة 28 رمز التحقق</li>
-            <li><strong>الخانات 29-42:</strong> الرقم القومي / الشخصي (14 خانة) + الخانة 43 رمز التحقق</li>
-            <li><strong>الخانة 44:</strong> رمز التحقق الشامل للجواز (Composite Checksum)</li>
-          </ul>
-        </div>
-      </div>
-
-      {/* Algorithm Math Breakdown Card */}
-      <div className="p-5 bg-amber-50/60 dark:bg-amber-950/20 rounded-2xl border border-amber-200 dark:border-amber-800 space-y-3">
-        <h4 className="font-bold text-xs text-amber-950 dark:text-amber-200 uppercase tracking-wider flex items-center gap-2">
-          <Info className="w-4 h-4 text-amber-700" />
-          خوارزمية حساب أرقام التحقق (7-3-1 Weight Modulo 10 Algorithm)
-        </h4>
-        <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
-          تعتمد جميع الجوازات الرسمية عالمياً على أوزان تكرارية تتبع النمط <strong>[7, 3, 1]</strong> لحساب رمز التحقق.
-          يتم تحويل الأحرف إلى أرقام كالآتي:
-          <span className="font-mono bg-amber-100 dark:bg-amber-900 px-1.5 py-0.5 rounded mx-1">0-9 → 0-9</span>
-          <span className="font-mono bg-amber-100 dark:bg-amber-900 px-1.5 py-0.5 rounded mx-1">A-Z → 10-35</span>
-          <span className="font-mono bg-amber-100 dark:bg-amber-900 px-1.5 py-0.5 rounded mx-1">&lt; → 0</span>.
-          ثم يُحسب مجموع ضرب القيم بأوزانها، والناتج النهائي هو باقي القسمة على 10 (Modulo 10).
-        </p>
       </div>
     </div>
   );

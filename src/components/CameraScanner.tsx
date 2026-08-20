@@ -1,30 +1,26 @@
 import React, { useRef, useState } from 'react';
-import { Camera, Upload, Sparkles, CheckCircle2, AlertCircle, RefreshCw, Zap } from 'lucide-react';
+import { 
+  Camera, 
+  Upload, 
+  Sparkles, 
+  CheckCircle2, 
+  AlertCircle, 
+  RefreshCw, 
+  Zap, 
+  FileText,
+  Scan,
+  ShieldCheck
+} from 'lucide-react';
 import { PassportData } from '../types/passport';
-import { parseMRZ } from '../utils/mrzParser';
+import { parseMRZ, formatYYMMDDToISO } from '../utils/mrzParser';
 
 interface CameraScannerProps {
   onScanComplete: (passportData: PassportData) => void;
   lang?: 'ar' | 'en';
 }
 
-const sanitizeDateString = (dateStr?: string, defaultFallback: string = ''): string => {
-  if (!dateStr || !dateStr.trim()) return defaultFallback;
-  const clean = dateStr.trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) return clean;
-  if (/^\d{4}\/\d{2}\/\d{2}$/.test(clean)) return clean.replace(/\//g, '-');
-  const dmY = clean.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
-  if (dmY) {
-    return `${dmY[3]}-${dmY[2].padStart(2, '0')}-${dmY[1].padStart(2, '0')}`;
-  }
-  const digits = clean.replace(/\D/g, '');
-  if (digits.length === 8) {
-    return `${digits.substring(0, 4)}-${digits.substring(4, 6)}-${digits.substring(6, 8)}`;
-  }
-  return defaultFallback || clean;
-};
-
 export const CameraScanner: React.FC<CameraScannerProps> = ({ onScanComplete, lang = 'ar' }) => {
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -33,35 +29,33 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onScanComplete, la
   const [isProcessing, setIsProcessing] = useState(false);
   const [scanStatus, setScanStatus] = useState<string | null>(null);
   const [detectedData, setDetectedData] = useState<PassportData | null>(null);
-
-  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const startCamera = async () => {
-    setCameraError(null);
     try {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error('MEDIA_DEVICES_NOT_SUPPORTED');
-      }
+      setErrorMessage(null);
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+        video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } }
       });
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        videoRef.current.play();
         setIsCameraActive(true);
       }
     } catch (err: any) {
-      console.error('Camera access error:', err);
-      const errMsg = lang === 'ar'
-        ? 'تعذر تشغيل الكاميرا المباشرة في هذه البيئة (قد يتطلب فتح التطبيق في تبويب جديد أو السماح بإذن الكاميرا). يمكنك رفع صورة الجواز مباشرة بدلاً من ذلك.'
-        : 'Camera access not allowed in this context. Please use the image upload option or open app in a new tab.';
-      setCameraError(errMsg);
+      console.error('Camera error:', err);
+      setErrorMessage(
+        lang === 'ar' 
+          ? 'تعذر الوصول إلى الكاميرا. يرجى التأكد من إعطاء الإذن أو استخدام زر رفع الصورة.' 
+          : 'Unable to access camera. Please allow permissions or upload an image.'
+      );
     }
   };
 
   const stopCamera = () => {
     if (videoRef.current && videoRef.current.srcObject) {
       const stream = videoRef.current.srcObject as MediaStream;
-      stream.getTracks().forEach((track) => track.stop());
+      stream.getTracks().forEach(track => track.stop());
       videoRef.current.srcObject = null;
       setIsCameraActive(false);
     }
@@ -69,289 +63,342 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({ onScanComplete, la
 
   const capturePhoto = () => {
     if (!videoRef.current || !canvasRef.current) return;
-    const canvas = canvasRef.current;
     const video = videoRef.current;
-    canvas.width = video.videoWidth || 640;
-    canvas.height = video.videoHeight || 480;
-
+    const canvas = canvasRef.current;
+    canvas.width = video.videoWidth || 1280;
+    canvas.height = video.videoHeight || 720;
     const ctx = canvas.getContext('2d');
-    if (ctx) {
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const dataUrl = canvas.toDataURL('image/jpeg');
-      setCapturedImage(dataUrl);
-      stopCamera();
-      processPassportImage(dataUrl);
-    }
+    if (!ctx) return;
+
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+    setCapturedImage(dataUrl);
+    stopCamera();
+    processImageWithAI(dataUrl);
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const result = reader.result as string;
-        setCapturedImage(result);
-        processPassportImage(result);
-      };
-      reader.readAsDataURL(file);
-    }
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setCapturedImage(reader.result);
+        processImageWithAI(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
-  const processPassportImage = async (base64Image: string) => {
+  const sanitizeDateString = (d: any, fallback: string): string => {
+    if (typeof d !== 'string' || !d) return fallback;
+    const clean = d.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) return clean;
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(clean)) {
+      const [dd, mm, yyyy] = clean.split('/');
+      return `${yyyy}-${mm}-${dd}`;
+    }
+    return fallback;
+  };
+
+  const processImageWithAI = async (base64Image: string) => {
     setIsProcessing(true);
-    setScanStatus(lang === 'ar' ? 'جاري تحليل الصورة والتعرف الذكي على كود الـ MRZ بالذكاء الاصطناعي...' : 'Analyzing passport image with Gemini AI Vision...');
+    setScanStatus(lang === 'ar' ? 'جارٍ فحص وتحليل صورة الجواز والـ MRZ بواسطة الذكاء الاصطناعي...' : 'Analyzing passport image & MRZ with AI...');
+    setErrorMessage(null);
+    setDetectedData(null);
 
     try {
-      const res = await fetch('/api/scan-passport', {
+      const response = await fetch('/api/scan-passport', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json'
+        },
         body: JSON.stringify({ image: base64Image })
       });
 
-      if (res.ok) {
-        const jsonRes = await res.json();
-        if (jsonRes.success && jsonRes.data) {
-          const parsedJson = jsonRes.data;
-
-          // Parse MRZ if extracted by Gemini
-          let mrzParsed = null;
-          if (parsedJson.mrzLine1 && parsedJson.mrzLine2) {
-            mrzParsed = parseMRZ(`${parsedJson.mrzLine1}\n${parsedJson.mrzLine2}`);
-          }
-
-          const birthDate = sanitizeDateString(
-            parsedJson.birthDate || mrzParsed?.parsedFields?.birthDate,
-            '2004-02-02'
-          );
-          const expiryDate = sanitizeDateString(
-            parsedJson.expiryDate || mrzParsed?.parsedFields?.expiryDate,
-            '2030-04-17'
-          );
-          
-          let issueDate = sanitizeDateString(parsedJson.issueDate, '');
-          if (!issueDate && expiryDate) {
-            const expYear = parseInt(expiryDate.substring(0, 4), 10);
-            if (!isNaN(expYear)) {
-              issueDate = `${expYear - 6}${expiryDate.substring(4)}`;
-            }
-          }
-          if (!issueDate) issueDate = '2024-04-17';
-
-          const extractedPassport: PassportData = {
-            id: `scanned-${Date.now()}`,
-            documentType: (parsedJson.documentType || mrzParsed?.parsedFields?.documentType || 'P') as any,
-            documentSubtype: '<',
-            issuingState: parsedJson.issuingState || mrzParsed?.parsedFields?.issuingState || 'YEM',
-            surname: parsedJson.surname || mrzParsed?.parsedFields?.surname || 'AL-ZAHEAH',
-            surnameAr: parsedJson.surnameAr || (parsedJson.surname ? '' : 'الزحيه'),
-            givenNames: parsedJson.givenNames || mrzParsed?.parsedFields?.givenNames || 'MOHAMMED SHAWQI MOHAMMED HASAN',
-            givenNamesAr: parsedJson.givenNamesAr || (parsedJson.givenNames ? '' : 'محمد شوقي محمد حسن'),
-            passportNumber: parsedJson.passportNumber || mrzParsed?.parsedFields?.passportNumber || '13966269',
-            nationality: parsedJson.nationality || mrzParsed?.parsedFields?.nationality || 'YEM',
-            birthDate,
-            sex: (parsedJson.sex === 'F' || mrzParsed?.parsedFields?.sex === 'F') ? 'F' : 'M',
-            expiryDate,
-            personalNumber: parsedJson.personalNumber || mrzParsed?.parsedFields?.personalNumber || '',
-            issueDate,
-            profession: parsedJson.profession || 'LABORER',
-            professionAr: parsedJson.professionAr || 'عامل',
-            placeOfBirth: parsedJson.placeOfBirth || 'ALMAHWEET - YEM',
-            placeOfBirthAr: parsedJson.placeOfBirthAr || 'اليمن - المحويت',
-            issuingAuthority: parsedJson.issuingAuthority || 'KHAWKHAH',
-            issuingAuthorityAr: parsedJson.issuingAuthorityAr || 'الخوخة',
-            photoUrl: base64Image,
-            signatureUrl: ''
-          };
-
-          setDetectedData(extractedPassport);
-          setScanStatus(lang === 'ar' ? 'تم التعرف المباشر والدقيق على كود الـ MRZ وكافة بيانات الجواز بنجاح!' : 'Passport OCR and MRZ successfully extracted!');
-          setIsProcessing(false);
-          return;
-        }
+      if (!response.ok) {
+        throw new Error(`Server returned status: ${response.status}`);
       }
-    } catch (err) {
-      console.warn('Server passport scan error:', err);
-    }
 
-    // Fallback sample if server call fails
-    setTimeout(() => {
-      const mockScanned: PassportData = {
-        id: `scanned-${Date.now()}`,
-        documentType: 'P',
-        documentSubtype: '<',
-        issuingState: 'YEM',
-        surname: 'AL-ZAHEAH',
-        surnameAr: 'الزحيه',
-        givenNames: 'MOHAMMED SHAWQI MOHAMMED HASAN',
-        givenNamesAr: 'محمد شوقي محمد حسن',
-        passportNumber: '13966269',
-        nationality: 'YEM',
-        birthDate: '2004-02-02',
-        sex: 'M',
-        expiryDate: '2030-04-17',
-        personalNumber: '',
-        issueDate: '2024-04-17',
-        profession: 'LABORER',
-        professionAr: 'عامل',
-        placeOfBirth: 'ALMAHWEET - YEM',
-        placeOfBirthAr: 'اليمن - المحويت',
-        issuingAuthority: 'KHAWKHAH',
-        issuingAuthorityAr: 'الخوخة',
-        photoUrl: base64Image,
-        signatureUrl: ''
-      };
+      const result = await response.json();
+      if (result.success && result.data) {
+        const parsedJson = result.data;
 
-      setDetectedData(mockScanned);
-      setScanStatus(lang === 'ar' ? 'تم تحليل الصورة واستخراج بيانات القراءة الآلية (MRZ) بنجاح!' : 'Passport fields detected!');
+        // MRZ verification
+        let mrzParsed: any = null;
+        if (parsedJson.mrzLine1 && parsedJson.mrzLine2) {
+          mrzParsed = parseMRZ(`${parsedJson.mrzLine1}\n${parsedJson.mrzLine2}`);
+        }
+
+        let mrzBirthDate = '';
+        let mrzExpiryDate = '';
+        if (mrzParsed?.parsedFields) {
+          if (mrzParsed.parsedFields.birthDateYYMMDD) {
+            mrzBirthDate = formatYYMMDDToISO(mrzParsed.parsedFields.birthDateYYMMDD, true);
+          }
+          if (mrzParsed.parsedFields.expiryDateYYMMDD) {
+            mrzExpiryDate = formatYYMMDDToISO(mrzParsed.parsedFields.expiryDateYYMMDD, false);
+          }
+        }
+
+        const birthDate = sanitizeDateString(parsedJson.birthDate || mrzBirthDate, '');
+        const expiryDate = sanitizeDateString(parsedJson.expiryDate || mrzExpiryDate, '');
+        
+        let issueDate = sanitizeDateString(parsedJson.issueDate, '');
+        if (!issueDate && expiryDate) {
+          const expYear = parseInt(expiryDate.substring(0, 4), 10);
+          if (!isNaN(expYear)) {
+            issueDate = `${expYear - 6}${expiryDate.substring(4)}`;
+          }
+        }
+
+        const extractedPassport: PassportData = {
+          id: `scanned-${Date.now()}`,
+          documentType: parsedJson.documentType || 'P',
+          documentSubtype: '<',
+          issuingState: (parsedJson.issuingState || mrzParsed?.parsedFields?.issuingState || '').toUpperCase(),
+          surname: (parsedJson.surname || mrzParsed?.parsedFields?.surname || '').toUpperCase(),
+          surnameAr: parsedJson.surnameAr || '',
+          givenNames: (parsedJson.givenNames || mrzParsed?.parsedFields?.givenNames || '').toUpperCase(),
+          givenNamesAr: parsedJson.givenNamesAr || '',
+          passportNumber: (parsedJson.passportNumber || mrzParsed?.parsedFields?.passportNumber || '').toUpperCase(),
+          nationality: (parsedJson.nationality || mrzParsed?.parsedFields?.nationality || '').toUpperCase(),
+          birthDate,
+          sex: (parsedJson.sex === 'F' || mrzParsed?.parsedFields?.sex === 'F') ? 'F' : 'M',
+          expiryDate,
+          issueDate,
+          profession: parsedJson.profession || '',
+          professionAr: parsedJson.professionAr || '',
+          placeOfBirth: parsedJson.placeOfBirth || '',
+          placeOfBirthAr: parsedJson.placeOfBirthAr || '',
+          issuingAuthority: parsedJson.issuingAuthority || '',
+          issuingAuthorityAr: parsedJson.issuingAuthorityAr || '',
+          personalNumber: parsedJson.personalNumber || '',
+          photoUrl: base64Image,
+          signatureUrl: ''
+        };
+
+        setDetectedData(extractedPassport);
+        setScanStatus(lang === 'ar' ? 'تم استخراج وقراءة جميع بيانات الجواز والـ MRZ بنجاح تام!' : 'Passport OCR completed successfully!');
+      } else {
+        throw new Error(result.error || 'Failed to parse passport');
+      }
+    } catch (err: any) {
+      console.error('Scan error:', err);
+      setErrorMessage(
+        lang === 'ar'
+          ? `حدث خطأ أثناء معالجة الصورة: ${err.message || 'يرجى التأكد من وضوح الصورة والاتصال بالإنترنت'}`
+          : `Processing failed: ${err.message}`
+      );
+    } finally {
       setIsProcessing(false);
-    }, 1200);
+    }
+  };
+
+  const handleApplyData = () => {
+    if (detectedData) {
+      onScanComplete(detectedData);
+    }
   };
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6">
+      
+      {/* Scanner Header */}
+      <div className="p-5 bg-slate-900 border border-slate-800 rounded-2xl flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-amber-500" />
-            {lang === 'ar' ? 'المسح الضوئي الذكي لجواز السفر (AI Passport OCR Scanner)' : 'AI Passport OCR Scanner'}
-          </h3>
-          <p className="text-xs text-slate-500 mt-1">
-            {lang === 'ar'
-              ? 'التقط صورة للجواز أو ارفع ملف صورة للتعرف التلقائي على أسطر الـ MRZ واستخراج البيانات مباشرة.'
-              : 'Capture or upload a passport image for instant AI OCR scanning.'}
+          <h2 className="text-base font-bold text-slate-100 flex items-center gap-2">
+            <Scan className="w-5 h-5 text-emerald-400" />
+            {lang === 'ar' ? 'المسح الضوئي الذكي بالذكاء الاصطناعي (AI Passport Scanner)' : 'AI Smart Passport Scanner'}
+          </h2>
+          <p className="text-xs text-slate-400 mt-0.5">
+            {lang === 'ar' ? 'التقط صورة جواز السفر أو ارفعها من جهازك ليتم استخراج البيانات باللغتين العربية والإنجليزية وأسطر MRZ فوراً' : 'Capture or upload passport photo to extract all Latin/Arabic fields & MRZ'}
           </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {!isCameraActive ? (
+            <button
+              type="button"
+              onClick={startCamera}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl flex items-center gap-2 transition-all shadow-lg shadow-emerald-600/20"
+            >
+              <Camera className="w-4 h-4" />
+              {lang === 'ar' ? 'فتح الكاميرا والمسح المباشر' : 'Start Camera Scan'}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={stopCamera}
+              className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-xl flex items-center gap-2 transition-all"
+            >
+              {lang === 'ar' ? 'إيقاف الكاميرا' : 'Stop Camera'}
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl flex items-center gap-2 border border-slate-700 transition-all"
+          >
+            <Upload className="w-4 h-4 text-amber-400" />
+            {lang === 'ar' ? 'رفع صورة من الجهاز' : 'Upload Image'}
+          </button>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleFileUpload}
+            className="hidden"
+          />
         </div>
       </div>
 
-      <canvas ref={canvasRef} className="hidden" />
-
-      {/* Main Viewport */}
-      <div className="relative w-full min-h-[280px] bg-slate-950 rounded-2xl overflow-hidden border-2 border-slate-800 flex items-center justify-center">
-        {isCameraActive ? (
-          <div className="relative w-full h-full flex flex-col items-center justify-center">
-            <video ref={videoRef} autoPlay playsInline className="w-full max-h-[360px] object-cover" />
-            {/* Overlay Bounding Frame */}
-            <div className="absolute inset-8 border-2 border-dashed border-emerald-400 rounded-2xl pointer-events-none flex flex-col justify-between p-4 bg-emerald-500/5">
-              <span className="text-emerald-300 text-xs bg-slate-900/80 px-2 py-1 rounded w-fit font-mono">
-                وجّه كود الـ MRZ أسفل الإطار
-              </span>
-              <div className="h-12 border-t-2 border-emerald-400 bg-emerald-400/10 rounded-b-xl flex items-center justify-center">
-                <span className="text-[10px] text-emerald-200 font-mono">MRZ DETECTION ZONE</span>
-              </div>
+      {/* Camera Live Stream & Viewport */}
+      {isCameraActive && (
+        <div className="relative rounded-2xl overflow-hidden bg-black border-2 border-emerald-500 shadow-2xl flex flex-col items-center justify-center">
+          <video ref={videoRef} playsInline autoPlay className="w-full max-h-[480px] object-cover" />
+          
+          {/* Alignment Guides */}
+          <div className="absolute inset-8 sm:inset-16 border-2 border-emerald-400/80 rounded-xl pointer-events-none flex flex-col justify-between p-4">
+            <div className="text-center text-xs font-bold bg-emerald-950/80 text-emerald-300 py-1 px-3 rounded-full mx-auto backdrop-blur-sm">
+              {lang === 'ar' ? 'وجّه صفحة بيانات الجواز وأسطر MRZ داخل هذا الإطار' : 'Align passport page & MRZ lines inside frame'}
             </div>
+            <div className="border-t-2 border-dashed border-emerald-400 text-center text-[10px] text-emerald-200 pt-1">
+              {lang === 'ar' ? 'منطقة القراءة الآلية (MRZ Zone)' : 'Machine Readable Zone'}
+            </div>
+          </div>
+
+          {/* Capture Trigger Button */}
+          <div className="absolute bottom-4 inset-x-0 flex justify-center">
             <button
               type="button"
               onClick={capturePhoto}
-              className="absolute bottom-4 px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-lg transition-all flex items-center gap-2"
+              className="px-6 py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-sm rounded-full shadow-2xl flex items-center gap-2 transform active:scale-95 transition-all"
             >
               <Camera className="w-5 h-5" />
-              التقاط الصورة الآن
+              {lang === 'ar' ? 'التقاط الصورة وتحليلها' : 'Capture & Analyze'}
             </button>
           </div>
-        ) : capturedImage ? (
-          <div className="relative w-full flex flex-col items-center p-4">
-            <img src={capturedImage} alt="Captured Passport" className="max-h-[300px] object-contain rounded-xl border border-slate-800" />
+        </div>
+      )}
+
+      {/* Hidden canvas for taking snapshot */}
+      <canvas ref={canvasRef} className="hidden" />
+
+      {/* Processing Status Banner */}
+      {isProcessing && (
+        <div className="p-5 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center gap-3 text-amber-300">
+          <RefreshCw className="w-5 h-5 animate-spin text-amber-400 shrink-0" />
+          <div>
+            <span className="font-bold text-sm block">{scanStatus}</span>
+            <span className="text-xs text-amber-400/80 block mt-0.5">
+              {lang === 'ar' ? 'يتم قراءة النصوص وتدقيق رموز ICAO Doc 9303' : 'Reading text & verifying ICAO 9303 checksums'}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Error Message */}
+      {errorMessage && (
+        <div className="p-4 bg-rose-500/10 border border-rose-500/30 rounded-2xl flex items-center gap-3 text-rose-300 text-xs">
+          <AlertCircle className="w-5 h-5 text-rose-400 shrink-0" />
+          <span>{errorMessage}</span>
+        </div>
+      )}
+
+      {/* Extracted Data Result Card */}
+      {detectedData && !isProcessing && (
+        <div className="p-6 bg-emerald-950/20 border border-emerald-500/40 rounded-2xl space-y-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-6 h-6 text-emerald-400" />
+              <div>
+                <h3 className="font-bold text-sm sm:text-base text-emerald-200">
+                  {lang === 'ar' ? 'تم استخراج بيانات الجواز والقراءة الآلية بنجاح!' : 'Passport Data Successfully Extracted!'}
+                </h3>
+                <p className="text-xs text-slate-400">
+                  {lang === 'ar' ? 'راجع الحقول المستخرجة أدناه ثم انقر على اعتماد لنقلها إلى محرر الجواز' : 'Review fields below and apply to editor'}
+                </p>
+              </div>
+            </div>
+
             <button
               type="button"
-              onClick={() => {
-                setCapturedImage(null);
-                setDetectedData(null);
-                setScanStatus(null);
-              }}
-              className="mt-3 px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg flex items-center gap-1.5"
+              onClick={handleApplyData}
+              className="px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-lg shadow-emerald-500/25 flex items-center gap-2 transition-all"
             >
-              <RefreshCw className="w-3.5 h-3.5" />
-              إعادة التقاط أو رفع صورة أخرى
+              <Zap className="w-4 h-4 fill-current" />
+              {lang === 'ar' ? 'اعتماد ونقل البيانات إلى المحرر' : 'Apply & Send to Editor'}
             </button>
           </div>
-        ) : (
-          <div className="p-8 text-center space-y-4">
-            <div className="w-16 h-16 bg-slate-900 rounded-2xl flex items-center justify-center text-emerald-400 mx-auto border border-slate-800">
-              <Camera className="w-8 h-8" />
-            </div>
-            <div className="space-y-1">
-              <h4 className="text-sm font-bold text-white">ابدأ المسح الضوئي لجواز السفر</h4>
-              <p className="text-xs text-slate-400">اختر استخدام الكاميرا الحية أو رفع صورة من جهازك</p>
-            </div>
-            <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-              <button
-                type="button"
-                onClick={startCamera}
-                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition-all shadow-md flex items-center gap-2"
-              >
-                <Camera className="w-4 h-4" />
-                تشغيل الكاميرا
-              </button>
-              <label className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl transition-all shadow-md cursor-pointer flex items-center gap-2">
-                <Upload className="w-4 h-4" />
-                رفع صورة الجواز
-                <input type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
-              </label>
-            </div>
-          </div>
-        )}
-      </div>
 
-      {/* Camera Error / Context Warning Banner */}
-      {cameraError && (
-        <div className="p-4 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 rounded-xl flex items-start gap-3 text-amber-900 dark:text-amber-200 text-xs">
-          <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-          <div className="space-y-2 flex-1">
-            <p className="font-semibold leading-relaxed">{cameraError}</p>
-            <div className="flex items-center gap-2 pt-1">
-              <label className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg cursor-pointer text-xs inline-flex items-center gap-1.5 shadow-xs">
-                <Upload className="w-3.5 h-3.5" />
-                {lang === 'ar' ? 'رفع صورة الجواز الآن' : 'Upload Passport Image'}
-                <input type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
-              </label>
+          {/* Extracted Fields Summary Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs bg-slate-900/90 p-4 rounded-xl border border-emerald-500/20">
+            <div className="p-3 rounded-lg bg-slate-950 border border-slate-800">
+              <span className="text-slate-400 block text-[10px] uppercase font-bold">
+                {lang === 'ar' ? 'رقم الجواز' : 'Passport No.'}
+              </span>
+              <span className="font-mono font-black text-amber-400 text-sm">{detectedData.passportNumber || '-'}</span>
             </div>
-          </div>
-        </div>
-      )}
 
-      {/* Progress & Detection Results */}
-      {isProcessing && (
-        <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl flex items-center gap-3 text-amber-900 dark:text-amber-200 text-xs font-semibold">
-          <RefreshCw className="w-4 h-4 animate-spin text-amber-600" />
-          <span>{scanStatus}</span>
-        </div>
-      )}
-
-      {detectedData && !isProcessing && (
-        <div className="p-5 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-2xl space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-              <span className="font-bold text-sm text-emerald-950 dark:text-emerald-200">
-                نتائج القراءة الآلية المستخرجة (Extracted MRZ Data)
+            <div className="p-3 rounded-lg bg-slate-950 border border-slate-800">
+              <span className="text-slate-400 block text-[10px] uppercase font-bold">
+                {lang === 'ar' ? 'الاسم بالإنجليزية' : 'Name (Latin)'}
+              </span>
+              <span className="font-mono font-bold text-slate-100 truncate block">
+                {detectedData.surname} {detectedData.givenNames}
               </span>
             </div>
-            <button
-              type="button"
-              onClick={() => onScanComplete(detectedData)}
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center gap-1.5"
-            >
-              <Zap className="w-4 h-4" />
-              اعتماد ونقل البيانات إلى المحرر الرئيسي
-            </button>
-          </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs bg-white dark:bg-slate-900 p-4 rounded-xl border border-emerald-100 dark:border-emerald-900">
-            <div>
-              <span className="text-slate-500 block text-[10px]">رقم الجواز</span>
-              <span className="font-bold font-mono text-emerald-700">{detectedData.passportNumber}</span>
+            <div className="p-3 rounded-lg bg-slate-950 border border-slate-800">
+              <span className="text-slate-400 block text-[10px] uppercase font-bold">
+                {lang === 'ar' ? 'الاسم بالعربية' : 'Name (Arabic)'}
+              </span>
+              <span className="font-bold text-slate-100 truncate block">
+                {detectedData.givenNamesAr} {detectedData.surnameAr || '-'}
+              </span>
             </div>
-            <div>
-              <span className="text-slate-500 block text-[10px]">الاسم الكامل</span>
-              <span className="font-bold font-mono">{detectedData.surname} {detectedData.givenNames}</span>
+
+            <div className="p-3 rounded-lg bg-slate-950 border border-slate-800">
+              <span className="text-slate-400 block text-[10px] uppercase font-bold">
+                {lang === 'ar' ? 'الدولة والجنسية' : 'Country / Nationality'}
+              </span>
+              <span className="font-mono font-bold text-slate-100">
+                {detectedData.issuingState} / {detectedData.nationality}
+              </span>
             </div>
-            <div>
-              <span className="text-slate-500 block text-[10px]">الدولة والجنسية</span>
-              <span className="font-bold font-mono">{detectedData.issuingState} / {detectedData.nationality}</span>
+
+            <div className="p-3 rounded-lg bg-slate-950 border border-slate-800">
+              <span className="text-slate-400 block text-[10px] uppercase font-bold">
+                {lang === 'ar' ? 'تاريخ الميلاد والنوع' : 'DOB & Sex'}
+              </span>
+              <span className="font-mono font-bold text-slate-100">
+                {detectedData.birthDate || '-'} ({detectedData.sex === 'F' ? 'F' : 'M'})
+              </span>
             </div>
-            <div>
-              <span className="text-slate-500 block text-[10px]">تاريخ الانتهاء</span>
-              <span className="font-bold font-mono text-emerald-700">{detectedData.expiryDate}</span>
+
+            <div className="p-3 rounded-lg bg-slate-950 border border-slate-800">
+              <span className="text-slate-400 block text-[10px] uppercase font-bold">
+                {lang === 'ar' ? 'تاريخ الإصدار' : 'Issue Date'}
+              </span>
+              <span className="font-mono font-bold text-slate-100">{detectedData.issueDate || '-'}</span>
+            </div>
+
+            <div className="p-3 rounded-lg bg-slate-950 border border-slate-800">
+              <span className="text-slate-400 block text-[10px] uppercase font-bold">
+                {lang === 'ar' ? 'تاريخ الانتهاء' : 'Expiry Date'}
+              </span>
+              <span className="font-mono font-bold text-rose-400">{detectedData.expiryDate || '-'}</span>
+            </div>
+
+            <div className="p-3 rounded-lg bg-slate-950 border border-slate-800">
+              <span className="text-slate-400 block text-[10px] uppercase font-bold">
+                {lang === 'ar' ? 'الرقم الوطني / الشخصي' : 'National ID'}
+              </span>
+              <span className="font-mono font-bold text-slate-100">{detectedData.personalNumber || '-'}</span>
             </div>
           </div>
         </div>

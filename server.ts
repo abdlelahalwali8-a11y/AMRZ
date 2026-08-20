@@ -1,75 +1,81 @@
 import express from 'express';
-import path from 'path';
+import cors from 'cors';
 import { GoogleGenAI } from '@google/genai';
-import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-dotenv.config();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = 3000;
+const port = 3000;
 
-// Allow large payloads for base64 image uploads
-app.use(express.json({ limit: '20mb' }));
-app.use(express.urlencoded({ extended: true, limit: '20mb' }));
+app.use(cors());
+app.use(express.json({ limit: '50mb' }));
 
-// Health check route
-app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', time: new Date().toISOString() });
-});
+// Lazy GoogleGenAI client initialization
+let genaiClient: GoogleGenAI | null = null;
+function getGenAI(): GoogleGenAI {
+  if (!genaiClient) {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      console.warn('GEMINI_API_KEY not found. Attempting default initialization...');
+    }
+    genaiClient = new GoogleGenAI({ apiKey: apiKey || undefined });
+  }
+  return genaiClient;
+}
 
-// Passport Vision OCR & MRZ Extractor API Route
+// Endpoint for Passport OCR & MRZ Scanning
 app.post('/api/scan-passport', async (req, res) => {
   try {
     const { image } = req.body;
     if (!image) {
-      return res.status(400).json({ error: 'Image data is required' });
+      return res.status(400).json({ success: false, error: 'No image provided' });
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      console.warn('GEMINI_API_KEY environment variable is not set.');
-      return res.status(500).json({ error: 'GEMINI_API_KEY missing on server' });
-    }
-
-    const ai = new GoogleGenAI({
-      apiKey,
-      httpOptions: {
-        headers: {
-          'User-Agent': 'aistudio-build'
-        }
-      }
-    });
+    const ai = getGenAI();
+    const mimeMatch = image.match(/^data:(image\/\w+);base64,/);
+    const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
     const cleanBase64 = image.replace(/^data:image\/\w+;base64,/, '');
 
-    const prompt = `You are an expert official passport OCR and ICAO 9303 Machine Readable Zone (MRZ) reader.
-Analyze the provided passport image carefully and extract all visible text and fields with 100% accuracy in both English and Arabic.
+    const prompt = `You are an expert official passport OCR reader and ICAO Doc 9303 Machine Readable Travel Document (MRTD) analyzer.
+Carefully examine the uploaded passport image and extract all text and machine-readable data with maximum precision in both English/Latin and Arabic scripts.
 
-Instructions for Extraction:
-1. Locate the 2 MRZ lines at the bottom of the passport (TD3 format, exactly 44 characters per line).
-2. Extract the printed English and Arabic fields:
-   - "passportNumber": The passport number (9 characters/digits, e.g., 13966269 or 14704563).
-   - "surname": Surname / Family name in English (e.g., AL-ZAHEAH, HEBAH, AL HASHIMI).
-   - "surnameAr": Surname in Arabic (اللقب - e.g., الزحيه, هبه).
-   - "givenNames": Given / First & Middle names in English (e.g., MOHAMMED SHAWQI MOHAMMED HASAN).
-   - "givenNamesAr": Given names in Arabic (الاسم / الاسم الكامل - e.g., محمد شوقي محمد حسن).
-   - "documentType": Type of document, usually 'P'.
-   - "issuingState": 3-letter ISO country code (e.g., YEM, SAU, EGY).
-   - "nationality": 3-letter ISO nationality code (e.g., YEM, SAU, EGY).
-   - "birthDate": Date of birth in YYYY-MM-DD format (convert DD/MM/YYYY e.g. 02/02/2004 to 2004-02-02).
-   - "issueDate": Date of issue in YYYY-MM-DD format (convert DD/MM/YYYY e.g. 17/04/2024 to 2024-04-17).
-   - "expiryDate": Date of expiry in YYYY-MM-DD format (convert DD/MM/YYYY e.g. 17/04/2030 to 2030-04-17).
-   - "sex": Gender ('M' or 'F').
-   - "profession": Profession in English (e.g., LABORER, ENGINEER, STUDENT).
-   - "professionAr": Profession in Arabic (المهنة - e.g., عامل, مهندس, طالب).
-   - "placeOfBirth": Place of birth in English (e.g., ALMAHWEET - YEM, SANAA).
-   - "placeOfBirthAr": Place of birth in Arabic (محل الميلاد - e.g., اليمن - المحويت, صنعاء).
-   - "issuingAuthority": Issuing Authority in English (e.g., KHAWKHAH, ADEN, SANAA).
-   - "issuingAuthorityAr": Issuing Authority in Arabic (جهة الإصدار - e.g., الخوخة, عدن, صنعاء).
-   - "personalNumber": Personal ID number if present (or empty string).
-   - "mrzLine1": Exact MRZ Line 1 (44 characters).
-   - "mrzLine2": Exact MRZ Line 2 (44 characters).
+OCR & EXTRACTION INSTRUCTIONS:
+1. MACHINE READABLE ZONE (MRZ):
+   - Locate the 2 lines of text at the bottom of the passport page (TD3 format: exactly 44 characters per line consisting of uppercase letters A-Z, numbers 0-9, and '<' filler characters).
+   - Line 1 structure: P<[3-letter Country][Surname]<<[Given Names]... padded to 44 characters with '<'.
+   - Line 2 structure: [Passport No 9 chars][Check 1][Nationality 3 chars][DOB YYMMDD 6 chars][Check 1][Sex M/F 1][Expiry YYMMDD 6 chars][Check 1][Personal No / National ID 14 chars][Check 1][Composite Check 1].
+   - "mrzLine1": Exact 44-character line 1.
+   - "mrzLine2": Exact 44-character line 2.
 
-Return JSON only.`;
+2. VISUAL INSPECTION ZONE (VIZ) & MULTILINGUAL FIELDS:
+   - "passportNumber": Exact official passport number (alphanumeric, e.g. 13966269, 14704563, N1234567, etc.).
+   - "surname": Family name / Surname in English / Latin capital letters (e.g. AL-ZAHEAH, AL-HASHIMI, SMITH).
+   - "surnameAr": Family name / Surname in Arabic script (اللقب / العائلة / اسم العشيرة) if present on the passport.
+   - "givenNames": First, middle, and patronymic names in English / Latin capital letters (e.g. MOHAMMED SHAWQI MOHAMMED HASAN).
+   - "givenNamesAr": Given names in Arabic script (الاسم / الاسم الكامل / اسم الأب والجد) if present on the passport.
+   - "documentType": 'P' for regular passport, 'PD' for diplomatic, 'PS' for service/special.
+   - "issuingState": 3-letter ISO 3166-1 alpha-3 code of the issuing country (e.g. YEM, SAU, EGY, ARE, KWT, QAT, OMN, JOR, IRQ, SDN, MAR, DZA, TUN, USA, GBR, FRA, DEU, TUR).
+   - "nationality": 3-letter ISO 3166-1 alpha-3 nationality code.
+   - "birthDate": Date of birth converted to standard ISO format "YYYY-MM-DD" (e.g. "2004-02-02").
+   - "issueDate": Date of issuance in "YYYY-MM-DD" format (e.g. "2024-04-17").
+   - "expiryDate": Date of expiration in "YYYY-MM-DD" format (e.g. "2030-04-17").
+   - "sex": 'M' for male, 'F' for female.
+   - "personalNumber": National identification number / Personal number (الرقم الوطني / الرقم الشخصي / السجل المدني) if present, otherwise "".
+   - "profession": Profession in English (e.g. LABORER, ENGINEER, DOCTOR, STUDENT) if present, otherwise "".
+   - "professionAr": Profession in Arabic (المهنة) if present, otherwise "".
+   - "placeOfBirth": Place of birth in English (e.g. ALMAHWEET - YEM, SANAA, RIYADH, CAIRO) if present, otherwise "".
+   - "placeOfBirthAr": Place of birth in Arabic (محل الميلاد) if present, otherwise "".
+   - "issuingAuthority": Issuing authority / office in English (e.g. KHAWKHAH, ADEN, SANAA, RIYADH) if present, otherwise "".
+   - "issuingAuthorityAr": Issuing authority in Arabic (جهة الإصدار) if present, otherwise "".
+
+OUTPUT SPECIFICATION:
+- Return ONLY a raw JSON object containing these exact keys.
+- Do NOT wrap in markdown backticks or commentary.
+- Ensure all dates are in "YYYY-MM-DD" format.
+- Ensure country codes are 3-letter ISO codes.`;
 
     const response = await ai.models.generateContent({
       model: 'gemini-3.6-flash',
@@ -82,7 +88,7 @@ Return JSON only.`;
           parts: [
             {
               inlineData: {
-                mimeType: 'image/jpeg',
+                mimeType,
                 data: cleanBase64
               }
             },
@@ -94,46 +100,37 @@ Return JSON only.`;
       ]
     });
 
-    const textResponse = response.text || '';
-    const jsonMatch = textResponse.match(/\{[\s\S]*\}/);
-
-    if (!jsonMatch) {
-      return res.status(500).json({ error: 'Failed to parse JSON response from vision model' });
+    const text = response.text || '{}';
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      const match = text.match(/\{[\s\S]*\}/);
+      data = match ? JSON.parse(match[0]) : {};
     }
 
-    const data = JSON.parse(jsonMatch[0]);
     return res.json({ success: true, data });
-  } catch (error: any) {
-    console.error('Passport scan server error:', error);
-    return res.status(500).json({ error: error.message || 'Passport scanning failed' });
+  } catch (err: any) {
+    console.error('Passport scan server error:', err);
+    return res.status(500).json({ success: false, error: err.message || 'Internal server error' });
   }
 });
 
-export default app;
-
-async function startServer() {
-  // Vite middleware in dev mode
-  if (process.env.NODE_ENV !== 'production') {
-    const { createServer: createViteServer } = await import('vite');
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa'
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (_req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
-    });
-  }
-
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on http://0.0.0.0:${PORT}`);
+// Setup Vite in development or serve dist in production
+if (process.env.NODE_ENV !== 'production') {
+  const { createServer: createViteServer } = await import('vite');
+  const vite = await createViteServer({
+    server: { middlewareMode: true },
+    appType: 'spa'
+  });
+  app.use(vite.middlewares);
+} else {
+  app.use(express.static(path.join(__dirname, 'dist')));
+  app.get('*', (_req, res) => {
+    res.sendFile(path.join(__dirname, 'dist', 'index.html'));
   });
 }
 
-if (process.env.VERCEL !== '1' && process.env.VERCEL_ENV === undefined) {
-  startServer();
-}
-
+app.listen(port, '0.0.0.0', () => {
+  console.log(`Passport MRZ & Barcode System server running on port ${port}`);
+});

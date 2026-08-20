@@ -1,63 +1,86 @@
 import bwipjs from 'bwip-js';
+import { PassportData, BarcodeConfig } from '../types/passport';
+import { generateTD3MRZ } from './mrzGenerator';
 
-export type BarcodeType = 'pdf417' | 'code128' | 'qrcode' | 'datamatrix' | 'code39' | 'aztec';
+export function buildBarcodePayload(passport: PassportData, config: BarcodeConfig): string {
+  const mrz = generateTD3MRZ(passport);
 
-export interface BarcodeRenderOptions {
-  bcid: BarcodeType;
-  text: string;
-  scale?: number;
-  height?: number;
-  width?: number;
-  rotate?: 'N' | 'R' | 'L' | 'I';
-  includeText?: boolean;
-  textXAlign?: 'off' | 'left' | 'center' | 'right';
-  backgroundcolor?: string;
-  barcolor?: string;
-}
+  if (config.type === 'pdf417') {
+    // Official ICAO / Border control format
+    const lines = [
+      `I<${passport.issuingState || 'YEM'}${passport.passportNumber || ''}`,
+      `${passport.surname || ''}<<${passport.givenNames || ''}`,
+      `${passport.nationality || 'YEM'}|${passport.birthDate || ''}|${passport.sex || 'M'}|${passport.expiryDate || ''}`,
+      `${mrz.line1}`,
+      `${mrz.line2}`
+    ];
 
-/**
- * Renders a barcode onto an HTML Canvas element using bwip-js
- */
-export function renderBarcodeToCanvas(
-  canvas: HTMLCanvasElement,
-  options: BarcodeRenderOptions
-): Promise<void> {
-  return new Promise((resolve, reject) => {
-    try {
-      const bwipOptions: Record<string, any> = {
-        bcid: options.bcid,
-        text: options.text || 'P<SAU123456789',
-        scale: options.scale || 3,
-        height: options.height || 12,
-        rotate: options.rotate || 'N',
-        includetext: options.includeText ?? false,
-        textxalign: options.textXAlign || 'center',
-        backgroundcolor: options.backgroundcolor || 'FFFFFF',
-        barcolor: options.barcolor || '000000',
-      };
-
-      if (options.width !== undefined && options.width !== null) {
-        bwipOptions.width = options.width;
-      }
-
-      bwipjs.toCanvas(canvas, bwipOptions as bwipjs.ToCanvasOptions);
-      resolve();
-    } catch (err) {
-      console.error('BWIP-JS render error:', err);
-      reject(err);
+    if (passport.personalNumber) {
+      lines.push(`ID:${passport.personalNumber}`);
     }
-  });
+
+    if (config.customPrefix) {
+      return `${config.customPrefix}\n${lines.join('\n')}`;
+    }
+
+    return lines.join('\n');
+  }
+
+  if (config.includeMRZ && !config.includePersonalData) {
+    return `${mrz.line1}\n${mrz.line2}`;
+  }
+
+  if (config.includeRawJson) {
+    return JSON.stringify({
+      doc: passport.documentType || 'P',
+      state: passport.issuingState,
+      num: passport.passportNumber,
+      sur: passport.surname,
+      giv: passport.givenNames,
+      nat: passport.nationality,
+      dob: passport.birthDate,
+      sex: passport.sex,
+      exp: passport.expiryDate,
+      mrz1: mrz.line1,
+      mrz2: mrz.line2
+    });
+  }
+
+  return `${mrz.line1}\n${mrz.line2}`;
 }
 
-/**
- * Formats data specifically for passport PDF417 2D Barcodes according to ICAO specs
- */
-export function formatPassportPDF417Data(
-  line1: string,
-  line2: string,
-  passportNo: string,
-  nationalId: string
-): string {
-  // Official eMRTD / 2D barcode format includes header + MRZ
-  return `ICAO_MRTD\nNO:${passportNo}\nID:${nationalId || 'N/A'}\nMRZ:\n${line1}\n${line2}`;
+export async function renderBarcodeToCanvas(
+  canvas: HTMLCanvasElement,
+  text: string,
+  config: BarcodeConfig
+): Promise<void> {
+  if (!canvas || !text) return;
+
+  const bcidMap: Record<string, string> = {
+    pdf417: 'pdf417',
+    qrcode: 'qrcode',
+    datamatrix: 'datamatrix',
+    code128: 'code128'
+  };
+
+  const bcid = bcidMap[config.type] || 'pdf417';
+
+  try {
+    await bwipjs.toCanvas(canvas, {
+      bcid,
+      text,
+      scale: config.scale || 3,
+      height: config.type === 'pdf417' ? 12 : 15,
+      includetext: config.type === 'code128',
+      textxalign: 'center',
+      backgroundcolor: 'ffffff',
+      barcolor: '000000',
+      paddingwidth: 10,
+      paddingheight: 10,
+      eclevel: config.type === 'pdf417' ? (config.securityLevel ?? 4) : undefined
+    });
+  } catch (err) {
+    console.error('Barcode rendering error:', err);
+    throw err;
+  }
 }

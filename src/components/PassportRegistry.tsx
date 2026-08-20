@@ -1,17 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { PassportData } from '../types/passport';
-import { getCountryDisplayName } from '../utils/countryData';
-import { SAMPLE_PASSPORTS } from '../utils/sampleData';
-import {
-  Bookmark,
-  Search,
-  Plus,
-  Trash2,
-  ExternalLink,
-  Download,
-  Copy,
-  Check
+import { 
+  FolderArchive, 
+  Trash2, 
+  Download, 
+  Upload, 
+  Eye, 
+  Plus, 
+  Search, 
+  Calendar, 
+  Check, 
+  FileText,
+  User
 } from 'lucide-react';
+import { PassportData } from '../types/passport';
+import { COUNTRIES } from '../utils/countryData';
 
 interface PassportRegistryProps {
   currentPassport: PassportData;
@@ -19,183 +21,208 @@ interface PassportRegistryProps {
   lang?: 'ar' | 'en';
 }
 
+const STORAGE_KEY = 'icao_saved_passports_registry_v1';
+
 export const PassportRegistry: React.FC<PassportRegistryProps> = ({
   currentPassport,
   onSelectPassport,
   lang = 'ar'
 }) => {
-  const STORAGE_KEY = 'passport_mrz_registry_v1';
-  const [savedPassports, setSavedPassports] = useState<PassportData[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [savedNotification, setSavedNotification] = useState(false);
+  const [registry, setRegistry] = useState<PassportData[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [savedSuccess, setSavedSuccess] = useState(false);
 
   useEffect(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
-        setSavedPassports(JSON.parse(stored));
-      } else {
-        // Load initial sample passports
-        const samples = Object.values(SAMPLE_PASSPORTS);
-        setSavedPassports(samples);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(samples));
+        setRegistry(JSON.parse(stored));
       }
     } catch (e) {
-      console.error('LocalStorage read error:', e);
+      console.error('Error reading registry:', e);
     }
   }, []);
 
-  const saveToStorage = (list: PassportData[]) => {
-    setSavedPassports(list);
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
-    } catch (e) {
-      console.error('LocalStorage write error:', e);
-    }
+  const saveToRegistry = (passport: PassportData) => {
+    setRegistry(prev => {
+      const filtered = prev.filter(p => p.id !== passport.id);
+      const updated = [passport, ...filtered];
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      return updated;
+    });
+    setSavedSuccess(true);
+    setTimeout(() => setSavedSuccess(false), 2000);
   };
 
-  const handleSaveCurrent = () => {
-    const existingIndex = savedPassports.findIndex((p) => p.id === currentPassport.id || p.passportNumber === currentPassport.passportNumber);
-    let updated: PassportData[];
-    if (existingIndex >= 0) {
-      updated = [...savedPassports];
-      updated[existingIndex] = { ...currentPassport, updatedAt: new Date().toISOString() };
-    } else {
-      updated = [{ ...currentPassport, id: `passport-${Date.now()}`, createdAt: new Date().toISOString() }, ...savedPassports];
-    }
-    saveToStorage(updated);
-    setSavedNotification(true);
-    setTimeout(() => setSavedNotification(false), 2500);
-  };
-
-  const handleDelete = (id: string, e: React.MouseEvent) => {
+  const deleteFromRegistry = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    const updated = savedPassports.filter((p) => p.id !== id);
-    saveToStorage(updated);
+    setRegistry(prev => {
+      const updated = prev.filter(p => p.id !== id);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      return updated;
+    });
   };
 
   const handleExportJSON = () => {
-    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(savedPassports, null, 2));
-    const downloadAnchor = document.createElement('a');
-    downloadAnchor.setAttribute('href', dataStr);
-    downloadAnchor.setAttribute('download', `Passport_Registry_${Date.now()}.json`);
-    downloadAnchor.click();
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(registry, null, 2));
+    const a = document.createElement('a');
+    a.href = dataStr;
+    a.download = `ICAO_Passport_Registry_Export_${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
   };
 
-  const filteredPassports = savedPassports.filter((p) => {
-    const query = searchQuery.toLowerCase();
+  const handleImportJSON = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const imported = JSON.parse(event.target?.result as string);
+        if (Array.isArray(imported)) {
+          setRegistry(prev => {
+            const combined = [...imported, ...prev];
+            // remove duplicates by ID
+            const unique = Array.from(new Map(combined.map(item => [item.id, item])).values());
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(unique));
+            return unique;
+          });
+        }
+      } catch (err) {
+        console.error('Error importing JSON:', err);
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const filtered = registry.filter(p => {
+    const term = searchTerm.toLowerCase();
     return (
-      p.passportNumber.toLowerCase().includes(query) ||
-      p.surname.toLowerCase().includes(query) ||
-      p.givenNames.toLowerCase().includes(query) ||
-      p.issuingState.toLowerCase().includes(query) ||
-      p.personalNumber.toLowerCase().includes(query)
+      (p.passportNumber || '').toLowerCase().includes(term) ||
+      (p.surname || '').toLowerCase().includes(term) ||
+      (p.givenNames || '').toLowerCase().includes(term) ||
+      (p.surnameAr || '').toLowerCase().includes(term) ||
+      (p.givenNamesAr || '').toLowerCase().includes(term) ||
+      (p.issuingState || '').toLowerCase().includes(term)
     );
   });
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
-      {/* Top Banner & Quick Actions */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="space-y-6">
+      
+      {/* Header */}
+      <div className="p-5 bg-slate-900 border border-slate-800 rounded-2xl flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-            <Bookmark className="w-5 h-5 text-emerald-600" />
-            {lang === 'ar' ? 'سجل الجوازات المحفوظة (Saved Passports Registry)' : 'Saved Passports Registry'}
-          </h3>
-          <p className="text-xs text-slate-500 mt-0.5">
-            {lang === 'ar' ? 'احفظ وإدارة جوازاتك المنشأة للرجوع إليها أو تصديرها بضغطة زر' : 'Manage and store created passport records.'}
+          <h2 className="text-base font-bold text-slate-100 flex items-center gap-2">
+            <FolderArchive className="w-5 h-5 text-amber-400" />
+            {lang === 'ar' ? 'سجل الوثائق والجوازات المحفوظة' : 'Passport Documents Registry'}
+          </h2>
+          <p className="text-xs text-slate-400 mt-0.5">
+            {lang === 'ar' ? 'حفظ واسترجاع الجوازات والوثائق محلياً مع إمكانية التصدير والاستيراد' : 'Store & retrieve passport records locally with JSON export/import'}
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={handleSaveCurrent}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-sm transition-all"
+            onClick={() => saveToRegistry(currentPassport)}
+            className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-md shadow-amber-500/20"
           >
-            {savedNotification ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-            {savedNotification
-              ? lang === 'ar' ? 'تم الحفظ بنجاح!' : 'Saved!'
-              : lang === 'ar' ? 'حفظ الجواز الحالي في السجل' : 'Save Current'}
+            {savedSuccess ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+            {savedSuccess ? (lang === 'ar' ? 'تم الحفظ!' : 'Saved!') : (lang === 'ar' ? 'حفظ الجواز الحالي في السجل' : 'Save Current')}
           </button>
 
           <button
             type="button"
             onClick={handleExportJSON}
-            className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 text-xs font-semibold rounded-xl transition-all"
+            className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl border border-slate-700 flex items-center gap-1.5 transition-all"
           >
-            <Download className="w-4 h-4" />
-            {lang === 'ar' ? 'تصدير JSON' : 'Export JSON'}
+            <Download className="w-3.5 h-3.5" />
+            {lang === 'ar' ? 'تصدير السجل (JSON)' : 'Export JSON'}
           </button>
+
+          <label className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl border border-slate-700 flex items-center gap-1.5 cursor-pointer transition-all">
+            <Upload className="w-3.5 h-3.5 text-amber-400" />
+            <span>{lang === 'ar' ? 'استيراد (JSON)' : 'Import JSON'}</span>
+            <input type="file" accept=".json" onChange={handleImportJSON} className="hidden" />
+          </label>
         </div>
       </div>
 
-      {/* Search Bar */}
+      {/* Search Input */}
       <div className="relative">
-        <Search className="w-4 h-4 text-slate-400 absolute right-3 top-3" />
+        <Search className="w-4 h-4 absolute right-4 top-3 text-slate-500" />
         <input
           type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder={lang === 'ar' ? 'ابحث برقم الجواز، الاسم، أو الدولة...' : 'Search by passport number, name, or country...'}
-          className="w-full pr-10 pl-4 py-2.5 text-xs border border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder={lang === 'ar' ? 'ابحث برقم الجواز، الاسم، الدولة...' : 'Search by passport number, name, state...'}
+          className="w-full bg-slate-900 border border-slate-800 rounded-xl pr-11 pl-4 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500"
         />
       </div>
 
-      {/* Registry Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredPassports.length === 0 ? (
-          <div className="col-span-full text-center py-12 text-slate-400 text-xs">
-            {lang === 'ar' ? 'لا يوجد جوازات مطابقة للبحث' : 'No passports found in registry'}
-          </div>
-        ) : (
-          filteredPassports.map((p) => (
-            <div
-              key={p.id}
-              onClick={() => onSelectPassport(p)}
-              className={`group relative p-4 rounded-2xl border transition-all cursor-pointer hover:shadow-md ${
-                p.passportNumber === currentPassport.passportNumber
-                  ? 'bg-amber-50/60 dark:bg-amber-950/20 border-amber-400 ring-2 ring-amber-300'
-                  : 'bg-white dark:bg-slate-800/60 border-slate-200 dark:border-slate-800 hover:border-blue-400'
-              }`}
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-2.5">
-                  <img
-                    src={p.photoUrl || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100'}
-                    alt="Passport photo"
-                    className="w-10 h-12 object-cover rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-100"
-                  />
-                  <div>
-                    <h4 className="font-bold text-xs text-slate-900 dark:text-white uppercase font-mono">
-                      {p.surname} {p.givenNames}
-                    </h4>
-                    <span className="text-[10px] text-slate-500 font-mono block">
-                      {p.passportNumber} • {getCountryDisplayName(p.issuingState, lang)}
+      {/* List of Passports */}
+      {filtered.length === 0 ? (
+        <div className="p-12 bg-slate-900 border border-slate-800 rounded-2xl text-center space-y-3">
+          <FileText className="w-10 h-10 text-slate-600 mx-auto" />
+          <h3 className="text-sm font-bold text-slate-300">
+            {lang === 'ar' ? 'لا توجد وثائق مسجلة حالياً' : 'No records found in registry'}
+          </h3>
+          <p className="text-xs text-slate-500 max-w-sm mx-auto">
+            {lang === 'ar' ? 'يمكنك حفظ الجواز الحالي من الزر أعلاه للرجوع إليه وتعديله في أي وقت.' : 'Click "Save Current" above to add passport records here.'}
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filtered.map(p => {
+            const country = COUNTRIES.find(c => c.code === p.issuingState);
+            return (
+              <div
+                key={p.id}
+                onClick={() => onSelectPassport(p)}
+                className="p-4 bg-slate-900 hover:bg-slate-850 border border-slate-800 hover:border-amber-500/50 rounded-2xl cursor-pointer transition-all shadow-md group relative flex flex-col justify-between space-y-3"
+              >
+                <div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">{country?.flag || '🛂'}</span>
+                      <span className="font-bold text-xs text-slate-200">
+                        {country?.nameEn || p.issuingState}
+                      </span>
+                    </div>
+                    <span className="font-mono text-xs font-bold text-amber-400 bg-slate-950 px-2 py-0.5 rounded border border-slate-800">
+                      {p.passportNumber || 'N/A'}
                     </span>
+                  </div>
+
+                  <div className="mt-3 space-y-1">
+                    <div className="font-bold text-xs text-slate-100 truncate">
+                      {p.surname} {p.givenNames}
+                    </div>
+                    {(p.surnameAr || p.givenNamesAr) && (
+                      <div className="text-xs text-slate-400 truncate">
+                        {p.givenNamesAr} {p.surnameAr}
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={(e) => handleDelete(p.id, e)}
-                  className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-colors"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
+                <div className="flex items-center justify-between text-[11px] text-slate-500 pt-2 border-t border-slate-800">
+                  <span>{p.expiryDate ? `Exp: ${p.expiryDate}` : ''}</span>
+                  <button
+                    type="button"
+                    onClick={(e) => deleteFromRegistry(p.id, e)}
+                    className="text-slate-500 hover:text-rose-400 p-1 transition-colors"
+                    title="حذف السجل"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
+            );
+          })}
+        </div>
+      )}
 
-              <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[10px] text-slate-500 font-mono">
-                <span>الانتهاء: {p.expiryDate}</span>
-                <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400 font-semibold group-hover:underline">
-                  فتح للمعينة
-                  <ExternalLink className="w-3 h-3" />
-                </span>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
     </div>
   );
 };

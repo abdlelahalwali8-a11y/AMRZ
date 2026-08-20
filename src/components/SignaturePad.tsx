@@ -1,32 +1,38 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Eraser, Pen, Check } from 'lucide-react';
+import { Eraser, Check, Undo2 } from 'lucide-react';
 
 interface SignaturePadProps {
-  value: string; // base64 data URL
-  onChange: (dataUrl: string) => void;
+  onSave: (dataUrl: string) => void;
+  initialSignature?: string;
   lang?: 'ar' | 'en';
 }
 
-export const SignaturePad: React.FC<SignaturePadProps> = ({ value, onChange, lang = 'ar' }) => {
+export const SignaturePad: React.FC<SignaturePadProps> = ({ onSave, initialSignature, lang = 'ar' }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
-  const [textMode, setTextMode] = useState(false);
-  const [signatureText, setSignatureText] = useState('');
+  const [hasDrawn, setHasDrawn] = useState(false);
 
   useEffect(() => {
-    if (value && canvasRef.current) {
-      const canvas = canvasRef.current;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        const img = new Image();
-        img.onload = () => {
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
-          ctx.drawImage(img, 0, 0);
-        };
-        img.src = value;
-      }
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.strokeStyle = '#0f172a';
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    if (initialSignature) {
+      const img = new Image();
+      img.onload = () => {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        setHasDrawn(true);
+      };
+      img.src = initialSignature;
     }
-  }, []);
+  }, [initialSignature]);
 
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
@@ -35,15 +41,14 @@ export const SignaturePad: React.FC<SignaturePadProps> = ({ value, onChange, lan
     if (!ctx) return;
 
     setIsDrawing(true);
+    setHasDrawn(true);
+
     const rect = canvas.getBoundingClientRect();
-    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    const x = 'touches' in e ? e.touches[0].clientX - rect.left : e.clientX - rect.left;
+    const y = 'touches' in e ? e.touches[0].clientY - rect.top : e.clientY - rect.top;
 
     ctx.beginPath();
-    ctx.moveTo(clientX - rect.left, clientY - rect.top);
-    ctx.lineWidth = 2.5;
-    ctx.lineCap = 'round';
-    ctx.strokeStyle = '#0f172a'; // dark navy signature ink
+    ctx.moveTo(x, y);
   };
 
   const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
@@ -54,95 +59,38 @@ export const SignaturePad: React.FC<SignaturePadProps> = ({ value, onChange, lan
     if (!ctx) return;
 
     const rect = canvas.getBoundingClientRect();
-    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    const x = 'touches' in e ? e.touches[0].clientX - rect.left : e.clientX - rect.left;
+    const y = 'touches' in e ? e.touches[0].clientY - rect.top : e.clientY - rect.top;
 
-    ctx.lineTo(clientX - rect.left, clientY - rect.top);
+    ctx.lineTo(x, y);
     ctx.stroke();
   };
 
   const stopDrawing = () => {
-    if (!isDrawing) return;
-    setIsDrawing(false);
-    if (canvasRef.current) {
-      onChange(canvasRef.current.toDataURL());
+    if (isDrawing && canvasRef.current) {
+      setIsDrawing(false);
+      onSave(canvasRef.current.toDataURL('image/png'));
     }
   };
 
-  const clearCanvas = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (ctx) {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-    }
-    onChange('');
-    setSignatureText('');
-  };
-
-  const handleTextSignatureChange = (text: string) => {
-    setSignatureText(text);
+  const clear = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    if (text.trim()) {
-      ctx.font = 'italic 28px "Brush Script MT", "Caveat", "Segoe Script", cursive';
-      ctx.fillStyle = '#0f172a';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(text, canvas.width / 2, canvas.height / 2);
-    }
-    onChange(canvas.toDataURL());
+    setHasDrawn(false);
+    onSave('');
   };
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between text-xs font-medium text-slate-600 dark:text-slate-300">
-        <span className="flex items-center gap-1.5">
-          <Pen className="w-3.5 h-3.5 text-blue-600" />
-          {lang === 'ar' ? 'التوقيع الرقمي للمالك (Digital Signature)' : 'Holder Digital Signature'}
-        </span>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setTextMode(!textMode)}
-            className="text-xs text-blue-600 hover:underline"
-          >
-            {textMode
-              ? lang === 'ar' ? 'الرسم باليد' : 'Draw by Hand'
-              : lang === 'ar' ? 'كتابة اسم' : 'Type Name'}
-          </button>
-          <button
-            type="button"
-            onClick={clearCanvas}
-            className="flex items-center gap-1 text-xs text-rose-600 hover:text-rose-700 font-medium"
-          >
-            <Eraser className="w-3 h-3" />
-            {lang === 'ar' ? 'مسح' : 'Clear'}
-          </button>
-        </div>
-      </div>
-
-      {textMode ? (
-        <div className="space-y-2">
-          <input
-            type="text"
-            value={signatureText}
-            onChange={(e) => handleTextSignatureChange(e.target.value)}
-            placeholder={lang === 'ar' ? 'اكتب اسم صاحب الجواز هنا...' : 'Type signature text...'}
-            className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
-          />
-        </div>
-      ) : null}
-
-      <div className="relative border border-dashed border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900/50 p-2 overflow-hidden">
+    <div className="flex flex-col gap-2">
+      <div className="relative border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl overflow-hidden bg-white dark:bg-slate-900 shadow-inner">
         <canvas
           ref={canvasRef}
-          width={360}
-          height={90}
+          width={340}
+          height={120}
+          className="w-full h-[120px] touch-none cursor-crosshair"
           onMouseDown={startDrawing}
           onMouseMove={draw}
           onMouseUp={stopDrawing}
@@ -150,11 +98,29 @@ export const SignaturePad: React.FC<SignaturePadProps> = ({ value, onChange, lan
           onTouchStart={startDrawing}
           onTouchMove={draw}
           onTouchEnd={stopDrawing}
-          className="w-full h-24 cursor-crosshair touch-none bg-transparent"
         />
-        <div className="absolute bottom-1 left-2 text-[10px] text-slate-400 select-none pointer-events-none">
-          {lang === 'ar' ? 'منطقة التوقيع الإلزامية' : 'Mandatory Signature Area'}
-        </div>
+        {!hasDrawn && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none text-xs text-slate-400">
+            {lang === 'ar' ? 'وقع هنا بالإصبع أو القلم / الماوس' : 'Sign here with finger or mouse'}
+          </div>
+        )}
+      </div>
+
+      <div className="flex items-center justify-between">
+        <button
+          type="button"
+          onClick={clear}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 rounded-lg hover:bg-rose-100 transition-colors"
+        >
+          <Eraser className="w-3.5 h-3.5" />
+          {lang === 'ar' ? 'مسح التوقيع' : 'Clear'}
+        </button>
+        {hasDrawn && (
+          <span className="text-[11px] text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+            <Check className="w-3 h-3" />
+            {lang === 'ar' ? 'تم حفظ التوقيع' : 'Signature saved'}
+          </span>
+        )}
       </div>
     </div>
   );

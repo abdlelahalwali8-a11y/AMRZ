@@ -5,13 +5,18 @@ declare module 'bwip-js' {
     scale?: number;
     height?: number;
     width?: number;
-    rotate?: 'N' | 'R' | 'L' | 'I';
     includetext?: boolean;
-    textxalign?: 'off' | 'left' | 'center' | 'right';
+    textxalign?: 'center' | 'left' | 'right' | 'off';
     backgroundcolor?: string;
     barcolor?: string;
-    [key: string]: any;
+    paddingwidth?: number;
+    paddingheight?: number;
+    rotate?: 'N' | 'R' | 'L' | 'I';
+    eclevel?: number;
+    columns?: number;
+    rows?: number;
   }
 
-  export function toCanvas(canvas: string | HTMLCanvasElement, options: ToCanvasOptions): HTMLCanvasElement;
+  export function toCanvas(canvas: HTMLCanvasElement | string, options: ToCanvasOptions): Promise<HTMLCanvasElement>;
+  export function toBuffer(options: ToCanvasOptions): Promise<Buffer>;
 }

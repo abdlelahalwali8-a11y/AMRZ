@@ -1,29 +1,38 @@
 import React from 'react';
-import { ShieldCheck, Heart } from 'lucide-react';
+import { ShieldCheck, Cpu, Code2, Plane } from 'lucide-react';
 
 interface FooterProps {
-  lang?: 'ar' | 'en';
+  lang: 'ar' | 'en';
 }
 
-export const Footer: React.FC<FooterProps> = ({ lang = 'ar' }) => {
+export const Footer: React.FC<FooterProps> = ({ lang }) => {
   return (
-    <footer className="mt-12 bg-slate-900 border-t border-slate-800 text-slate-400 text-xs py-8 px-4">
-      <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4 text-center md:text-right">
+    <footer className="mt-16 bg-slate-900 border-t border-slate-800 text-slate-400 text-xs py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-4 text-center md:text-right">
         <div className="flex items-center gap-2">
-          <ShieldCheck className="w-5 h-5 text-amber-500" />
-          <span className="font-semibold text-slate-200">
-            {lang === 'ar' ? 'نظام القراءة الآلية والباركود للجوازات الرسمية المعيارية' : 'ICAO Official Passport System'}
+          <ShieldCheck className="w-4 h-4 text-amber-400" />
+          <span>
+            {lang === 'ar' 
+              ? 'نظام معتمد طبقاً لمعايير وثائق السفر المقروءة آلياً (ICAO Doc 9303 Part 4 - TD3)' 
+              : 'Compliant with ICAO Doc 9303 Part 4 (TD3 MRTD Standard)'}
           </span>
         </div>
 
-        <p className="text-slate-500">
-          {lang === 'ar'
-            ? 'متوافق 100% مع مواصفات منظمة الطيران المدني الدولي ICAO Doc 9303 Part 3/4'
-            : '100% Compliant with ICAO Document 9303 Part 3 & 4 Standard Specs'}
-        </p>
-
-        <div className="text-slate-500 font-mono text-[11px]">
-          7-3-1 Modulo 10 Checksum Engine • PDF417 / Code 128
+        <div className="flex items-center gap-4 text-[11px] text-slate-500">
+          <span className="flex items-center gap-1">
+            <Cpu className="w-3.5 h-3.5 text-emerald-400" />
+            Gemini 3.6 Flash AI OCR
+          </span>
+          <span>•</span>
+          <span className="flex items-center gap-1">
+            <Code2 className="w-3.5 h-3.5 text-cyan-400" />
+            PDF417 & MRZ Generator
+          </span>
+          <span>•</span>
+          <span className="flex items-center gap-1">
+            <Plane className="w-3.5 h-3.5 text-amber-400" />
+            Border Control Compliant
+          </span>
         </div>
       </div>
     </footer>
